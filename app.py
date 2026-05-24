@@ -43,6 +43,21 @@ def login_required(f):
     return decorated
 
 
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({'error': 'Unauthorized'}), 401
+            return redirect(url_for('login_page'))
+        if not session.get('is_admin'):
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({'error': 'Forbidden'}), 403
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated
+
+
 # --- Auth pages ---
 
 @app.route('/login')
@@ -74,7 +89,8 @@ def signup():
     user = db.create_user(username, email, pw_hash)
     session['user_id'] = user['id']
     session['username'] = user['username']
-    return jsonify({'success': True, 'username': user['username']}), 201
+    session['is_admin'] = False
+    return jsonify({'success': True, 'username': user['username'], 'is_admin': False, 'redirect': '/'}), 201
 
 
 @app.route('/api/auth/login', methods=['POST'])
@@ -92,7 +108,10 @@ def login():
 
     session['user_id'] = user['id']
     session['username'] = user['username']
-    return jsonify({'success': True, 'username': user['username']})
+    session['is_admin'] = bool(user.get('is_admin'))
+    is_admin = bool(user.get('is_admin'))
+    return jsonify({'success': True, 'username': user['username'], 'is_admin': is_admin,
+                    'redirect': '/admin' if is_admin else '/'})
 
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -105,7 +124,7 @@ def logout():
 def me():
     if 'user_id' not in session:
         return jsonify({'logged_in': False})
-    return jsonify({'logged_in': True, 'username': session.get('username')})
+    return jsonify({'logged_in': True, 'username': session.get('username'), 'is_admin': session.get('is_admin', False)})
 
 
 @app.route('/api/config', methods=['GET'])
@@ -122,7 +141,127 @@ def config():
 @app.route('/')
 @login_required
 def index():
+    if session.get('is_admin'):
+        return redirect(url_for('admin_panel'))
     return render_template('index.html', username=session.get('username'))
+
+
+# --- Admin Panel ---
+
+@app.route('/admin')
+@admin_required
+def admin_panel():
+    return render_template('admin.html', admin_username=session.get('username'))
+
+
+@app.route('/api/admin/stats', methods=['GET'])
+@admin_required
+def admin_stats():
+    return jsonify(db.get_global_stats())
+
+
+@app.route('/api/admin/users', methods=['GET'])
+@admin_required
+def admin_users():
+    users = db.get_all_users()
+    return jsonify({'users': users})
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def admin_delete_user(user_id):
+    target = db.get_user_by_id(user_id)
+    if not target:
+        return jsonify({'error': 'User not found'}), 404
+    if target.get('is_admin'):
+        return jsonify({'error': 'Cannot delete admin'}), 403
+    db.delete_user(user_id)
+    return jsonify({'success': True})
+
+
+@app.route('/api/admin/apify/global', methods=['POST'])
+@admin_required
+def admin_apify_global():
+    enabled = request.json.get('enabled')
+    if enabled is None:
+        return jsonify({'error': 'enabled field required'}), 400
+    db.set_apify_enabled_global(bool(enabled))
+    return jsonify({'success': True, 'enabled': bool(enabled)})
+
+
+@app.route('/api/admin/apify/user/<int:user_id>', methods=['POST'])
+@admin_required
+def admin_apify_user(user_id):
+    target = db.get_user_by_id(user_id)
+    if not target:
+        return jsonify({'error': 'User not found'}), 404
+    if target.get('is_admin'):
+        return jsonify({'error': 'Cannot modify admin'}), 403
+    enabled = request.json.get('enabled')
+    if enabled is None:
+        return jsonify({'error': 'enabled field required'}), 400
+    db.set_apify_enabled_user(user_id, bool(enabled))
+    return jsonify({'success': True, 'enabled': bool(enabled)})
+
+
+@app.route('/api/admin/campaigns', methods=['GET'])
+@admin_required
+def admin_campaigns():
+    campaigns = db.get_all_campaigns_with_user()
+    return jsonify({'campaigns': campaigns})
+
+
+@app.route('/api/admin/campaigns/<int:campaign_id>/export', methods=['GET'])
+@admin_required
+def admin_export_campaign(campaign_id):
+    campaign = db.get_campaign(campaign_id)
+    if not campaign:
+        return jsonify({'error': 'Not found'}), 404
+    leads = db.get_leads(campaign_id)
+
+    def generate():
+        yield "Name,Address,Phone,Email,Website,Category,Rating,Reviews,Google URL,Status,Notes\n"
+        for lead in leads:
+            row = [
+                str(lead.get('name', '')).replace(',', ' '),
+                str(lead.get('address', '')).replace(',', ' '),
+                str(lead.get('phone', '')).replace(',', ' '),
+                str(lead.get('email', '')).replace(',', ' '),
+                str(lead.get('website', '')).replace(',', ' '),
+                str(lead.get('category', '')).replace(',', ' '),
+                str(lead.get('rating', '')),
+                str(lead.get('reviews', '')),
+                str(lead.get('google_url', '')).replace(',', '%2C'),
+                str(lead.get('call_status', 'Need to Call')).replace(',', ' '),
+                str(lead.get('notes', '')).replace(',', ' '),
+            ]
+            yield ','.join(row) + '\n'
+
+    filename = f"admin_leads_{campaign_id}_{campaign.get('name','export').replace(' ','_')}.csv"
+    return Response(generate(), mimetype='text/csv',
+                    headers={'Content-Disposition': f'attachment; filename={filename}'})
+
+
+@app.route('/api/admin/export/all-users', methods=['GET'])
+@admin_required
+def admin_export_users():
+    users = db.get_all_users()
+
+    def generate():
+        yield "ID,Username,Email,Admin,Apify Enabled,Created At\n"
+        for u in users:
+            row = [
+                str(u.get('id', '')),
+                str(u.get('username', '')).replace(',', ' '),
+                str(u.get('email', '')).replace(',', ' '),
+                'Yes' if u.get('is_admin') else 'No',
+                'Yes' if u.get('apify_enabled', True) else 'No',
+                str(u.get('created_at', '')),
+            ]
+            yield ','.join(row) + '\n'
+
+    return Response(generate(), mimetype='text/csv',
+                    headers={'Content-Disposition': 'attachment; filename=admin_users_export.csv'})
 
 
 # --- Campaigns ---
@@ -142,6 +281,10 @@ def create_campaign():
 
     if not requirement:
         return jsonify({'error': 'Requirement text is required'}), 400
+
+    user = db.get_user_by_id(session['user_id'])
+    if user and user.get('apify_enabled') is False:
+        return jsonify({'error': 'Apify access is disabled for your account. Contact the admin.'}), 403
 
     parsed = parse_requirement(requirement)
     campaign_name = f"{parsed['search_query'].capitalize()} in {parsed['location'].capitalize()}" if parsed['location'] else parsed['search_query'].capitalize()

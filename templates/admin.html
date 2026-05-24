@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>reStrucAi — Admin</title>
+    <link rel="icon" type="image/png" href="/static/img/logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* ── Admin-specific styles ── */
+        .admin-layout { display: flex; height: 100vh; }
+
+        /* Sidebar */
+        .admin-sidebar {
+            width: 260px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .admin-nav { margin-top: 2rem; flex-grow: 1; }
+        .admin-nav h4 {
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px;
+            color: var(--text-dim); margin-bottom: 0.75rem; padding: 0 0.5rem;
+        }
+
+        .nav-item {
+            display: flex; align-items: center; gap: 0.65rem;
+            padding: 0.65rem 0.75rem; cursor: pointer; border: 1px solid transparent;
+            margin-bottom: 0.2rem; border-radius: 2px;
+            font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim);
+            transition: all 0.15s; text-decoration: none;
+        }
+        .nav-item i { width: 15px; height: 15px; flex-shrink: 0; }
+        .nav-item:hover { color: var(--text-light); background: var(--bg-panel-hover); border-color: var(--border-color); }
+        .nav-item.active { color: var(--accent); border-color: var(--accent); background: rgba(200,241,53,0.05); }
+
+        .admin-footer {
+            border-top: 1px solid var(--border-color); padding-top: 1rem; margin-top: auto;
+        }
+        .admin-profile {
+            display: flex; align-items: center; gap: 0.6rem;
+            margin-bottom: 0.75rem;
+        }
+        .admin-avatar {
+            width: 34px; height: 34px; border-radius: 50%;
+            background: linear-gradient(135deg, #C8F135 0%, #00c853 100%);
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-mono); font-size: 0.75rem; font-weight: 700; color: #000;
+            flex-shrink: 0;
+        }
+        .admin-profile-info { overflow: hidden; }
+        .admin-profile-name {
+            font-size: 0.85rem; font-weight: 600; color: var(--text-light);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .admin-profile-role {
+            font-family: var(--font-mono); font-size: 0.68rem; color: var(--accent);
+            letter-spacing: 0.5px;
+        }
+        .btn-logout-admin {
+            width: 100%; background: transparent; border: 1px solid var(--border-color);
+            color: var(--text-dim); font-family: var(--font-mono); font-size: 0.78rem;
+            padding: 0.4rem 0.75rem; cursor: pointer; display: flex; align-items: center;
+            gap: 0.5rem; transition: all 0.15s;
+        }
+        .btn-logout-admin:hover { color: var(--danger); border-color: var(--danger); }
+
+        /* Main */
+        .admin-main { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        .admin-topbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 1rem 2rem; border-bottom: 1px solid var(--border-color);
+            background: var(--bg-panel); flex-shrink: 0;
+        }
+        .topbar-left { display: flex; align-items: center; gap: 1rem; }
+        .admin-badge {
+            font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700;
+            padding: 2px 8px; border: 1px solid var(--accent); color: var(--accent);
+            letter-spacing: 1px; text-transform: uppercase;
+        }
+        .topbar-right { display: flex; align-items: center; gap: 0.75rem; }
+        .topbar-title-text {
+            font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-main);
+        }
+
+        .admin-content { flex-grow: 1; overflow-y: auto; padding: 2rem 2.5rem; }
+
+        /* Views */
+        .admin-view { display: none; animation: fadeIn 0.25s ease; }
+        .admin-view.active { display: block; }
+
+        /* Page header */
+        .page-header { margin-bottom: 2rem; }
+        .page-header h2 {
+            font-size: 1.4rem; color: var(--text-light); margin-bottom: 0.3rem;
+        }
+        .page-header p {
+            font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim);
+        }
+
+        /* Stats row */
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; margin-bottom: 2.5rem; }
+        .stat-tile {
+            background: var(--bg-panel); border: 1px solid var(--border-color);
+            padding: 1.25rem 1.5rem; border-left: 3px solid var(--accent);
+            position: relative;
+        }
+        .stat-tile-label {
+            font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.6rem;
+        }
+        .stat-tile-val {
+            font-size: 2.2rem; font-weight: 700; color: var(--text-light); line-height: 1;
+        }
+        .stat-tile-icon {
+            position: absolute; top: 1.25rem; right: 1.25rem;
+            width: 20px; height: 20px; color: var(--text-dim); opacity: 0.5;
+        }
+        .stat-tile.green { border-left-color: var(--success); }
+        .stat-tile.green .stat-tile-val { color: var(--success); }
+        .stat-tile.red { border-left-color: var(--danger); }
+        .stat-tile.yellow { border-left-color: #ffbd2e; }
+        .stat-tile.yellow .stat-tile-val { color: #ffbd2e; }
+
+        /* Section cards */
+        .section-card {
+            background: var(--bg-panel); border: 1px solid var(--border-color); margin-bottom: 2rem;
+        }
+        .section-card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-color);
+        }
+        .section-card-title {
+            font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 0.5rem;
+        }
+        .section-card-title i { width: 14px; height: 14px; }
+        .section-card-actions { display: flex; gap: 0.5rem; }
+
+        /* Apify master toggle */
+        .apify-master {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 1.25rem 1.5rem; background: rgba(200,241,53,0.03);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .apify-master-info { }
+        .apify-master-label {
+            font-size: 0.9rem; font-weight: 600; color: var(--text-light); margin-bottom: 0.2rem;
+        }
+        .apify-master-sub {
+            font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);
+        }
+        .apify-master-controls { display: flex; gap: 0.5rem; align-items: center; }
+
+        /* Toggle switch */
+        .toggle-wrap { display: flex; align-items: center; gap: 0.6rem; }
+        .toggle-label { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim); }
+        .toggle {
+            position: relative; width: 40px; height: 22px; cursor: pointer;
+        }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute; inset: 0; background: var(--bg-dark);
+            border: 1px solid var(--border-color); border-radius: 22px; transition: 0.2s;
+        }
+        .toggle-slider:before {
+            content: ''; position: absolute; width: 16px; height: 16px;
+            left: 2px; top: 2px; background: var(--text-dim); border-radius: 50%; transition: 0.2s;
+        }
+        .toggle input:checked + .toggle-slider { background: rgba(200,241,53,0.15); border-color: var(--accent); }
+        .toggle input:checked + .toggle-slider:before { background: var(--accent); transform: translateX(18px); }
+
+        /* Admin table */
+        .admin-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        .admin-table th, .admin-table td { padding: 0.85rem 1.25rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .admin-table th {
+            font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1px; background: var(--bg-panel);
+            position: sticky; top: 0; z-index: 1;
+        }
+        .admin-table tbody tr { transition: background 0.15s; }
+        .admin-table tbody tr:hover { background: var(--bg-panel-hover); }
+        .admin-table td { color: var(--text-main); }
+        .admin-table td:first-child { color: var(--text-light); font-weight: 500; }
+
+        .table-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+
+        /* Pills / badges */
+        .pill {
+            display: inline-block; padding: 2px 8px; border-radius: 20px; border: 1px solid;
+            font-family: var(--font-mono); font-size: 0.65rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap;
+        }
+        .pill-green  { color: var(--success); border-color: var(--success); background: rgba(0,230,118,0.06); }
+        .pill-red    { color: var(--danger);  border-color: var(--danger);  background: rgba(255,77,79,0.06); }
+        .pill-yellow { color: #ffbd2e; border-color: #ffbd2e; background: rgba(255,189,46,0.06); }
+        .pill-blue   { color: #56b4ff; border-color: #56b4ff; background: rgba(86,180,255,0.06); }
+        .pill-accent { color: var(--accent); border-color: var(--accent); background: rgba(200,241,53,0.06); }
+        .pill-dim    { color: var(--text-dim); border-color: var(--border-color); background: transparent; }
+
+        /* Buttons */
+        .btn-sm {
+            background: transparent; border: 1px solid var(--border-color); color: var(--text-dim);
+            padding: 0.3rem 0.65rem; font-family: var(--font-mono); font-size: 0.72rem;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem;
+            transition: all 0.15s; white-space: nowrap;
+        }
+        .btn-sm i { width: 12px; height: 12px; }
+        .btn-sm:hover { color: var(--text-light); border-color: var(--text-dim); }
+        .btn-sm.danger { color: var(--danger); border-color: rgba(255,77,79,0.4); }
+        .btn-sm.danger:hover { background: rgba(255,77,79,0.1); border-color: var(--danger); }
+        .btn-sm.accent { color: var(--accent); border-color: rgba(200,241,53,0.4); }
+        .btn-sm.accent:hover { background: var(--accent-glow); border-color: var(--accent); }
+        .btn-sm.success { color: var(--success); border-color: rgba(0,230,118,0.4); }
+        .btn-sm.success:hover { background: rgba(0,230,118,0.08); border-color: var(--success); }
+
+        .btn-action {
+            background: var(--accent); color: #000; border: none;
+            padding: 0.5rem 1.1rem; font-family: var(--font-mono); font-size: 0.8rem;
+            font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;
+            transition: all 0.15s; letter-spacing: 0.5px;
+        }
+        .btn-action i { width: 14px; height: 14px; }
+        .btn-action:hover { background: var(--accent-hover); box-shadow: 0 0 12px var(--accent-glow); }
+        .btn-action:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        /* Empty state */
+        .empty-state {
+            padding: 3rem; text-align: center;
+            font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-dim);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(3px);
+            z-index: 300; display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-overlay.open { opacity: 1; pointer-events: all; }
+        .modal-box {
+            background: var(--bg-panel); border: 1px solid var(--border-color);
+            width: 420px; max-width: calc(100vw - 2rem);
+            transform: translateY(12px) scale(0.97);
+            transition: transform 0.2s cubic-bezier(0.16,1,0.3,1), opacity 0.2s; opacity: 0;
+            border-radius: 8px; overflow: hidden;
+        }
+        .modal-overlay.open .modal-box { transform: translateY(0) scale(1); opacity: 1; }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color);
+        }
+        .modal-title { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-light); font-weight: 600; }
+        .modal-body { padding: 1.25rem; }
+        .modal-body p { font-size: 0.9rem; color: var(--text-main); line-height: 1.5; margin-bottom: 0.5rem; }
+        .modal-body strong { color: var(--text-light); }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 0.6rem; padding: 1rem 1.25rem; border-top: 1px solid var(--border-color); }
+        .modal-cancel {
+            background: transparent; border: 1px solid var(--border-color); color: var(--text-main);
+            font-family: var(--font-mono); font-size: 0.8rem; padding: 0.45rem 1rem; cursor: pointer;
+            border-radius: 4px; transition: all 0.15s;
+        }
+        .modal-cancel:hover { border-color: var(--text-dim); color: var(--text-light); }
+        .modal-confirm-del {
+            background: var(--danger); border: none; color: #fff; font-family: var(--font-mono);
+            font-size: 0.8rem; font-weight: 700; padding: 0.45rem 1.1rem; cursor: pointer;
+            border-radius: 4px; transition: all 0.15s;
+        }
+        .modal-confirm-del:hover { background: var(--danger-hover); }
+
+        /* Toast */
+        #admin-toast {
+            position: fixed; bottom: 2rem; right: 2rem;
+            background: var(--bg-panel); border: 1px solid var(--accent);
+            color: var(--accent); font-family: var(--font-mono); font-size: 0.82rem;
+            padding: 0.75rem 1.25rem; z-index: 400; display: none;
+            box-shadow: 0 0 20px rgba(0,0,0,0.7);
+        }
+        #admin-toast.visible { display: block; animation: fadeIn 0.2s ease; }
+        #admin-toast.error { border-color: var(--danger); color: var(--danger); }
+
+        /* Campaigns sub-table expand */
+        .row-user-tag {
+            font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim);
+        }
+
+        /* Search / filter bar */
+        .filter-bar {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.75rem 1.25rem; border-bottom: 1px solid var(--border-color);
+            background: var(--bg-dark);
+        }
+        .filter-input {
+            background: var(--bg-panel); border: 1px solid var(--border-color);
+            color: var(--text-light); font-family: var(--font-mono); font-size: 0.82rem;
+            padding: 0.35rem 0.75rem; outline: none; flex-grow: 1; max-width: 280px;
+            transition: border-color 0.15s;
+        }
+        .filter-input:focus { border-color: var(--accent); }
+        .filter-input::placeholder { color: var(--text-dim); }
+
+        /* Apify table status inline */
+        .apify-cell { display: flex; align-items: center; gap: 0.6rem; }
+    </style>
+</head>
+<body class="dark-theme">
+<div class="scanlines"></div>
+
+<div class="admin-layout">
+
+    <!-- Sidebar -->
+    <aside class="admin-sidebar">
+        <div>
+            <span class="brand-logo-sm" style="font-size:2rem;padding:0;margin-bottom:0.25rem;display:block;">
+                <span class="brand-re">re</span><span class="brand-struc">Struc</span><span class="brand-ai">Ai</span>
+            </span>
+            <div style="font-family:var(--font-mono);font-size:0.65rem;color:var(--text-dim);letter-spacing:1.5px;text-transform:uppercase;margin-top:2px;">Admin Console</div>
+        </div>
+
+        <nav class="admin-nav">
+            <h4>Navigation</h4>
+            <a class="nav-item active" id="nav-overview" onclick="showView('overview')">
+                <i data-lucide="layout-dashboard"></i> Overview
+            </a>
+            <a class="nav-item" id="nav-users" onclick="showView('users')">
+                <i data-lucide="users"></i> Users
+            </a>
+            <a class="nav-item" id="nav-campaigns" onclick="showView('campaigns')">
+                <i data-lucide="database"></i> Campaigns
+            </a>
+            <a class="nav-item" id="nav-apify" onclick="showView('apify')">
+                <i data-lucide="zap"></i> Apify Control
+            </a>
+        </nav>
+
+        <div class="admin-footer">
+            <div class="admin-profile">
+                <div class="admin-avatar">NR</div>
+                <div class="admin-profile-info">
+                    <div class="admin-profile-name">Nishit Rathod</div>
+                    <div class="admin-profile-role">&#x2726; Founder &mdash; reStrucAI</div>
+                </div>
+            </div>
+            <button class="btn-logout-admin" onclick="adminLogout()">
+                <i data-lucide="log-out" style="width:13px;height:13px;"></i> LOGOUT
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="admin-main">
+        <!-- Topbar -->
+        <div class="admin-topbar">
+            <div class="topbar-left">
+                <span class="topbar-title-text" id="topbar-view-label">Overview</span>
+                <span class="admin-badge">ADMIN</span>
+            </div>
+            <div class="topbar-right">
+                <button class="btn-sm accent" onclick="refreshCurrentView()" title="Refresh data">
+                    <i data-lucide="refresh-cw"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="admin-content">
+
+            <!-- ── Overview ── -->
+            <div class="admin-view active" id="view-overview">
+                <div class="page-header">
+                    <h2>Dashboard Overview</h2>
+                    <p>Platform-wide analytics — read-only view.</p>
+                </div>
+
+                <div class="stats-row" id="stats-row">
+                    <div class="stat-tile">
+                        <div class="stat-tile-label">Total Users</div>
+                        <div class="stat-tile-val" id="stat-users">—</div>
+                        <i data-lucide="users" class="stat-tile-icon"></i>
+                    </div>
+                    <div class="stat-tile green">
+                        <div class="stat-tile-label">Campaigns</div>
+                        <div class="stat-tile-val" id="stat-campaigns">—</div>
+                        <i data-lucide="database" class="stat-tile-icon"></i>
+                    </div>
+                    <div class="stat-tile yellow">
+                        <div class="stat-tile-label">Total Leads</div>
+                        <div class="stat-tile-val" id="stat-leads">—</div>
+                        <i data-lucide="contact" class="stat-tile-icon"></i>
+                    </div>
+                    <div class="stat-tile red">
+                        <div class="stat-tile-label">Running Now</div>
+                        <div class="stat-tile-val" id="stat-running">—</div>
+                        <i data-lucide="activity" class="stat-tile-icon"></i>
+                    </div>
+                </div>
+
+                <!-- Recent campaigns snapshot -->
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i data-lucide="clock"></i> Recent Campaigns
+                        </div>
+                        <button class="btn-sm accent" onclick="showView('campaigns')">
+                            <i data-lucide="arrow-right"></i> View All
+                        </button>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="admin-table" id="overview-campaigns-table">
+                            <thead>
+                                <tr>
+                                    <th>Campaign</th>
+                                    <th>Status</th>
+                                    <th>Leads</th>
+                                    <th>Created</th>
+                                    <th>Export</th>
+                                </tr>
+                            </thead>
+                            <tbody id="overview-campaigns-body">
+                                <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Users ── -->
+            <div class="admin-view" id="view-users">
+                <div class="page-header">
+                    <h2>User Management</h2>
+                    <p>View all registered users. You can toggle Apify access or delete accounts. Admin account is protected.</p>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i data-lucide="users"></i> Registered Users
+                        </div>
+                        <div class="section-card-actions">
+                            <button class="btn-sm accent" onclick="exportUsersCSV()">
+                                <i data-lucide="download"></i> Export CSV
+                            </button>
+                        </div>
+                    </div>
+                    <div class="filter-bar">
+                        <input class="filter-input" id="users-search" type="text" placeholder="Search by username or email…" oninput="filterUsersTable()">
+                    </div>
+                    <div class="table-scroll">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Role</th>
+                                    <th>Apify</th>
+                                    <th>Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-table-body">
+                                <tr><td colspan="7" class="empty-state">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Campaigns ── -->
+            <div class="admin-view" id="view-campaigns">
+                <div class="page-header">
+                    <h2>All Campaigns</h2>
+                    <p>Full query history across all users — view and export, read-only.</p>
+                </div>
+
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i data-lucide="database"></i> Campaign Records
+                        </div>
+                    </div>
+                    <div class="filter-bar">
+                        <input class="filter-input" id="camps-search" type="text" placeholder="Search campaigns…" oninput="filterCampsTable()">
+                    </div>
+                    <div class="table-scroll">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Campaign Name</th>
+                                    <th>Query</th>
+                                    <th>Location</th>
+                                    <th>Status</th>
+                                    <th>Leads</th>
+                                    <th>Created</th>
+                                    <th>Export</th>
+                                </tr>
+                            </thead>
+                            <tbody id="camps-table-body">
+                                <tr><td colspan="8" class="empty-state">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Apify Control ── -->
+            <div class="admin-view" id="view-apify">
+                <div class="page-header">
+                    <h2>Apify Connection Control</h2>
+                    <p>Enable or disable Apify scraping globally for all users, or per-user.</p>
+                </div>
+
+                <!-- Global toggle -->
+                <div class="section-card" style="margin-bottom:1.5rem;">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i data-lucide="globe"></i> Global Toggle
+                        </div>
+                    </div>
+                    <div class="apify-master">
+                        <div class="apify-master-info">
+                            <div class="apify-master-label">Apify Scraping — All Users</div>
+                            <div class="apify-master-sub">Turning this OFF disables Apify for every non-admin user at once. Per-user overrides below still apply after re-enabling.</div>
+                        </div>
+                        <div class="apify-master-controls">
+                            <button class="btn-action" id="btn-enable-all" onclick="setApifyGlobal(true)">
+                                <i data-lucide="zap"></i> Enable All
+                            </button>
+                            <button class="btn-sm danger" id="btn-disable-all" onclick="setApifyGlobal(false)">
+                                <i data-lucide="zap-off"></i> Disable All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Per-user -->
+                <div class="section-card">
+                    <div class="section-card-header">
+                        <div class="section-card-title">
+                            <i data-lucide="user-cog"></i> Per-User Apify Access
+                        </div>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Apify Status</th>
+                                    <th>Toggle</th>
+                                </tr>
+                            </thead>
+                            <tbody id="apify-table-body">
+                                <tr><td colspan="4" class="empty-state">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /admin-content -->
+    </div><!-- /admin-main -->
+</div><!-- /admin-layout -->
+
+<!-- Delete confirmation modal -->
+<div class="modal-overlay" id="del-modal">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span class="modal-title">Confirm Delete User</span>
+            <button class="btn-icon" onclick="closeDelModal()"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+        </div>
+        <div class="modal-body">
+            <p>You are about to permanently delete user <strong id="del-modal-username"></strong>.</p>
+            <p style="color:var(--danger);font-family:var(--font-mono);font-size:0.78rem;">This will also delete all their campaigns and leads. This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-cancel" onclick="closeDelModal()">Cancel</button>
+            <button class="modal-confirm-del" id="del-modal-confirm" onclick="confirmDeleteUser()">Delete User</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="admin-toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────
+const admin = {
+    users: [],
+    campaigns: [],
+    currentView: 'overview',
+    pendingDeleteUserId: null,
+    pendingDeleteUsername: '',
+};
+
+// ── Init ───────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    lucide.createIcons();
+    loadOverview();
+});
+
+// ── Navigation ─────────────────────────────────────────────────────
+const VIEW_LABELS = {
+    overview: 'Overview',
+    users: 'User Management',
+    campaigns: 'All Campaigns',
+    apify: 'Apify Control',
+};
+
+function showView(name) {
+    document.querySelectorAll('.admin-view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    document.getElementById('nav-' + name).classList.add('active');
+    document.getElementById('topbar-view-label').textContent = VIEW_LABELS[name] || name;
+    admin.currentView = name;
+    if (name === 'overview') loadOverview();
+    if (name === 'users') loadUsers();
+    if (name === 'campaigns') loadCampaigns();
+    if (name === 'apify') loadApify();
+    lucide.createIcons();
+}
+
+function refreshCurrentView() { showView(admin.currentView); }
+
+// ── Overview ───────────────────────────────────────────────────────
+async function loadOverview() {
+    const [statsRes, campsRes] = await Promise.all([
+        fetch('/api/admin/stats'),
+        fetch('/api/admin/campaigns'),
+    ]);
+    const stats = await statsRes.json();
+    const campsData = await campsRes.json();
+    admin.campaigns = campsData.campaigns || [];
+
+    document.getElementById('stat-users').textContent = stats.total_users ?? '—';
+    document.getElementById('stat-campaigns').textContent = stats.total_campaigns ?? '—';
+    document.getElementById('stat-leads').textContent = stats.total_leads ?? '—';
+    document.getElementById('stat-running').textContent = stats.running_campaigns ?? '—';
+
+    const tbody = document.getElementById('overview-campaigns-body');
+    const recent = admin.campaigns.slice(0, 10);
+    if (!recent.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No campaigns yet.</td></tr>';
+    } else {
+        tbody.innerHTML = recent.map(c => `
+            <tr>
+                <td>${escHtml(c.name)}</td>
+                <td>${statusPill(c.status)}</td>
+                <td><span class="pill pill-dim">${c.lead_count ?? 0}</span></td>
+                <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">${fmtDate(c.created_at)}</td>
+                <td><button class="btn-sm accent" onclick="exportCampaign(${c.id}, '${escAttr(c.name)}')"><i data-lucide="download"></i> CSV</button></td>
+            </tr>
+        `).join('');
+    }
+    lucide.createIcons();
+}
+
+// ── Users ──────────────────────────────────────────────────────────
+async function loadUsers() {
+    const res = await fetch('/api/admin/users');
+    const data = await res.json();
+    admin.users = data.users || [];
+    renderUsersTable(admin.users);
+}
+
+function renderUsersTable(users) {
+    const tbody = document.getElementById('users-table-body');
+    if (!users.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No users found.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = users.map(u => {
+        const isAdmin = u.is_admin;
+        const apifyOn = u.apify_enabled !== false;
+        return `
+        <tr data-user-id="${u.id}" data-username="${escAttr(u.username)}" data-email="${escAttr(u.email || '')}">
+            <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">#${u.id}</td>
+            <td>${escHtml(u.username)}${isAdmin ? ' <span class="pill pill-accent" style="font-size:0.6rem;">ADMIN</span>' : ''}</td>
+            <td style="font-family:var(--font-mono);font-size:0.8rem;">${escHtml(u.email || '—')}</td>
+            <td>${isAdmin ? '<span class="pill pill-accent">Founder</span>' : '<span class="pill pill-dim">User</span>'}</td>
+            <td>
+                <div class="apify-cell">
+                    ${apifyOn ? '<span class="pill pill-green">ON</span>' : '<span class="pill pill-red">OFF</span>'}
+                </div>
+            </td>
+            <td style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);">${fmtDate(u.created_at)}</td>
+            <td>
+                ${isAdmin ? '<span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim);">Protected</span>' : `
+                <div style="display:flex;gap:0.4rem;align-items:center;">
+                    ${apifyOn
+                        ? `<button class="btn-sm danger" onclick="toggleUserApify(${u.id}, false)"><i data-lucide="zap-off"></i> Disable Apify</button>`
+                        : `<button class="btn-sm success" onclick="toggleUserApify(${u.id}, true)"><i data-lucide="zap"></i> Enable Apify</button>`
+                    }
+                    <button class="btn-sm danger" onclick="openDelModal(${u.id}, '${escAttr(u.username)}')"><i data-lucide="trash-2"></i> Delete</button>
+                </div>`}
+            </td>
+        </tr>`;
+    }).join('');
+    lucide.createIcons();
+}
+
+function filterUsersTable() {
+    const q = document.getElementById('users-search').value.toLowerCase();
+    const filtered = admin.users.filter(u =>
+        (u.username || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q)
+    );
+    renderUsersTable(filtered);
+}
+
+async function toggleUserApify(userId, enabled) {
+    const res = await fetch(`/api/admin/apify/user/${userId}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+    });
+    if (res.ok) {
+        showToast(`Apify ${enabled ? 'enabled' : 'disabled'} for user`);
+        await loadUsers();
+    } else {
+        showToast('Failed to update', true);
+    }
+}
+
+function exportUsersCSV() {
+    window.location.href = '/api/admin/export/all-users';
+}
+
+// ── Campaigns ──────────────────────────────────────────────────────
+async function loadCampaigns() {
+    const res = await fetch('/api/admin/campaigns');
+    const data = await res.json();
+    admin.campaigns = data.campaigns || [];
+    renderCampsTable(admin.campaigns);
+}
+
+function renderCampsTable(camps) {
+    const tbody = document.getElementById('camps-table-body');
+    if (!camps.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No campaigns found.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = camps.map(c => `
+        <tr>
+            <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">#${c.id}</td>
+            <td>${escHtml(c.name)}</td>
+            <td style="font-family:var(--font-mono);font-size:0.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escAttr(c.search_query)}">${escHtml(c.search_query)}</td>
+            <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">${escHtml(c.location || '—')}</td>
+            <td>${statusPill(c.status)}</td>
+            <td><span class="pill pill-dim">${c.lead_count ?? 0}</span></td>
+            <td style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);">${fmtDate(c.created_at)}</td>
+            <td><button class="btn-sm accent" onclick="exportCampaign(${c.id}, '${escAttr(c.name)}')"><i data-lucide="download"></i> CSV</button></td>
+        </tr>
+    `).join('');
+    lucide.createIcons();
+}
+
+function filterCampsTable() {
+    const q = document.getElementById('camps-search').value.toLowerCase();
+    const filtered = admin.campaigns.filter(c =>
+        (c.name || '').toLowerCase().includes(q) ||
+        (c.search_query || '').toLowerCase().includes(q) ||
+        (c.location || '').toLowerCase().includes(q)
+    );
+    renderCampsTable(filtered);
+}
+
+function exportCampaign(id, name) {
+    window.location.href = `/api/admin/campaigns/${id}/export`;
+}
+
+// ── Apify ──────────────────────────────────────────────────────────
+async function loadApify() {
+    const res = await fetch('/api/admin/users');
+    const data = await res.json();
+    admin.users = data.users || [];
+    renderApifyTable(admin.users.filter(u => !u.is_admin));
+}
+
+function renderApifyTable(users) {
+    const tbody = document.getElementById('apify-table-body');
+    if (!users.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No users.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = users.map(u => {
+        const apifyOn = u.apify_enabled !== false;
+        return `
+        <tr>
+            <td>${escHtml(u.username)}</td>
+            <td style="font-family:var(--font-mono);font-size:0.8rem;">${escHtml(u.email || '—')}</td>
+            <td>${apifyOn ? '<span class="pill pill-green">Enabled</span>' : '<span class="pill pill-red">Disabled</span>'}</td>
+            <td>
+                <label class="toggle" title="${apifyOn ? 'Click to disable' : 'Click to enable'}">
+                    <input type="checkbox" ${apifyOn ? 'checked' : ''} onchange="toggleUserApifyFromApifyTab(${u.id}, this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </td>
+        </tr>`;
+    }).join('');
+    lucide.createIcons();
+}
+
+async function toggleUserApifyFromApifyTab(userId, enabled) {
+    const res = await fetch(`/api/admin/apify/user/${userId}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+    });
+    if (res.ok) {
+        showToast(`Apify ${enabled ? 'enabled' : 'disabled'}`);
+        await loadApify();
+    } else {
+        showToast('Failed to update', true);
+        await loadApify();
+    }
+}
+
+async function setApifyGlobal(enabled) {
+    const label = enabled ? 'enable' : 'disable';
+    if (!confirm(`Are you sure you want to ${label} Apify for ALL users?`)) return;
+    const res = await fetch('/api/admin/apify/global', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+    });
+    if (res.ok) {
+        showToast(`Apify ${enabled ? 'enabled' : 'disabled'} for all users`);
+        await loadApify();
+    } else {
+        showToast('Failed', true);
+    }
+}
+
+// ── Delete modal ───────────────────────────────────────────────────
+function openDelModal(userId, username) {
+    admin.pendingDeleteUserId = userId;
+    admin.pendingDeleteUsername = username;
+    document.getElementById('del-modal-username').textContent = username;
+    document.getElementById('del-modal').classList.add('open');
+}
+
+function closeDelModal() {
+    admin.pendingDeleteUserId = null;
+    admin.pendingDeleteUsername = '';
+    document.getElementById('del-modal').classList.remove('open');
+}
+
+async function confirmDeleteUser() {
+    if (!admin.pendingDeleteUserId) return;
+    const btn = document.getElementById('del-modal-confirm');
+    btn.disabled = true; btn.textContent = 'Deleting…';
+    try {
+        const res = await fetch(`/api/admin/users/${admin.pendingDeleteUserId}`, { method: 'DELETE' });
+        if (res.ok) {
+            showToast(`User "${admin.pendingDeleteUsername}" deleted`);
+            closeDelModal();
+            await loadUsers();
+        } else {
+            const d = await res.json();
+            showToast(d.error || 'Failed to delete', true);
+        }
+    } finally {
+        btn.disabled = false; btn.textContent = 'Delete User';
+    }
+}
+
+// ── Auth ───────────────────────────────────────────────────────────
+async function adminLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+function escHtml(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(str) {
+    return String(str ?? '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
+function fmtDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+
+function statusPill(s) {
+    const map = {
+        completed: 'pill-green', running: 'pill-accent', failed: 'pill-red', pending: 'pill-yellow',
+    };
+    return `<span class="pill ${map[s] || 'pill-dim'}">${escHtml(s)}</span>`;
+}
+
+function showToast(msg, isError = false) {
+    const el = document.getElementById('admin-toast');
+    el.textContent = msg;
+    el.className = 'visible' + (isError ? ' error' : '');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => { el.className = ''; }, 3000);
+}
+
+// Close modal on overlay click
+document.getElementById('del-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeDelModal();
+});
+</script>
+</body>
+</html>

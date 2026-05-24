@@ -3,9 +3,20 @@
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username TEXT NOT NULL UNIQUE,
+    email TEXT,
     password_hash TEXT NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE,
+    apify_enabled BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- If the users table already exists, run these to add the new columns:
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS apify_enabled BOOLEAN DEFAULT TRUE;
+
+-- Seed the admin account (run once; replace the hash with bcrypt of NishitRathod@Build&GenerateRevenue):
+-- UPDATE users SET is_admin = TRUE, email = 'codewithnishit@gmail.com' WHERE username = 'sales@restrucai';
 
 CREATE TABLE IF NOT EXISTS campaigns (
     id SERIAL PRIMARY KEY,

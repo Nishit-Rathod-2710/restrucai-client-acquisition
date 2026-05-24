@@ -22,6 +22,11 @@ def get_user_by_username(username):
     return res.data[0] if res.data else None
 
 
+def get_user_by_id(user_id):
+    res = _supabase.table('users').select('*').eq('id', user_id).limit(1).execute()
+    return res.data[0] if res.data else None
+
+
 def create_user(username, email, password_hash):
     res = _supabase.table('users').insert({
         'username': username,
@@ -29,6 +34,49 @@ def create_user(username, email, password_hash):
         'password_hash': password_hash,
     }).execute()
     return res.data[0]
+
+
+# --- Admin ---
+
+def get_all_users():
+    res = _supabase.table('users').select('id, username, email, is_admin, apify_enabled, created_at').order('created_at', desc=False).execute()
+    return res.data
+
+
+def delete_user(user_id):
+    _supabase.table('users').delete().eq('id', user_id).execute()
+
+
+def set_apify_enabled_global(enabled: bool):
+    _supabase.table('users').update({'apify_enabled': enabled}).neq('is_admin', True).execute()
+
+
+def set_apify_enabled_user(user_id, enabled: bool):
+    _supabase.table('users').update({'apify_enabled': enabled}).eq('id', user_id).execute()
+
+
+def get_all_campaigns_with_user():
+    res = _supabase.table('campaigns').select(
+        '*, leads(count), user:users(id, username, email)'
+    ).order('created_at', desc=True).execute()
+    rows = res.data
+    for row in rows:
+        count_list = row.pop('leads', [])
+        row['lead_count'] = count_list[0]['count'] if count_list else 0
+    return rows
+
+
+def get_global_stats():
+    users_res = _supabase.table('users').select('id', count='exact').neq('is_admin', True).execute()
+    camps_res = _supabase.table('campaigns').select('id', count='exact').execute()
+    leads_res = _supabase.table('leads').select('id', count='exact').execute()
+    running_res = _supabase.table('campaigns').select('id', count='exact').eq('status', 'running').execute()
+    return {
+        'total_users': users_res.count or 0,
+        'total_campaigns': camps_res.count or 0,
+        'total_leads': leads_res.count or 0,
+        'running_campaigns': running_res.count or 0,
+    }
 
 
 # --- Campaigns ---

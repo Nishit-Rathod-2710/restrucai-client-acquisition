@@ -220,7 +220,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    window.location.href = '/';
+                    window.location.href = data.redirect || '/';
                 } else {
                     errEl.textContent = data.error || 'Login failed';
                     errEl.classList.add('visible');
@@ -263,7 +263,7 @@
                 });
                 const data = await res.json();
                 if (data.success) {
-                    window.location.href = '/';
+                    window.location.href = data.redirect || '/';
                 } else {
                     errEl.textContent = data.error || 'Signup failed';
                     errEl.classList.add('visible');
