@@ -8,7 +8,7 @@ from functools import wraps
 
 import db
 from query_builder import parse_requirement
-from apify_service import run_scraper
+from apify_service import run_scraper, start_scraper, fetch_dataset
 from email_enricher import enrich_campaign
 
 load_dotenv()
@@ -307,19 +307,35 @@ def create_campaign():
         user_id=session['user_id']
     )
 
-    def scrape_job(cid, q, loc, mx):
+    # On Vercel: use async webhook so the function returns before Apify finishes.
+    # Locally: use a background thread (blocking .call()) as before.
+    app_url = os.getenv('APP_URL', '').rstrip('/')
+    if app_url:
+        # Production path — fire-and-forget via Apify webhook
+        webhook_url = f"{app_url}/api/webhook/apify/{campaign_id}"
         try:
-            results = run_scraper(q, loc, mx)
-            for lead in results:
-                db.insert_lead(cid, lead)
-            db.update_campaign_status(cid, 'completed')
+            run_id, dataset_id = start_scraper(
+                parsed['search_query'], parsed['location'], parsed['max_results'], webhook_url
+            )
+            print(f"[Campaign {campaign_id}] Apify run started: {run_id}")
         except Exception:
-            print(f"[Error] Campaign {cid} failed:\n{traceback.format_exc()}")
-            db.update_campaign_status(cid, 'failed')
+            print(f"[Error] Campaign {campaign_id} failed to start:\n{traceback.format_exc()}")
+            db.update_campaign_status(campaign_id, 'failed')
+    else:
+        # Local dev path — background thread
+        def scrape_job(cid, q, loc, mx):
+            try:
+                results = run_scraper(q, loc, mx)
+                for lead in results:
+                    db.insert_lead(cid, lead)
+                db.update_campaign_status(cid, 'completed')
+            except Exception:
+                print(f"[Error] Campaign {cid} failed:\n{traceback.format_exc()}")
+                db.update_campaign_status(cid, 'failed')
 
-    t = threading.Thread(target=scrape_job, args=(campaign_id, parsed['search_query'], parsed['location'], parsed['max_results']))
-    t.daemon = True
-    t.start()
+        t = threading.Thread(target=scrape_job, args=(campaign_id, parsed['search_query'], parsed['location'], parsed['max_results']))
+        t.daemon = True
+        t.start()
 
     return jsonify({'success': True, 'campaign_id': campaign_id, 'parsed_query': parsed}), 201
 
@@ -475,6 +491,38 @@ def export_campaign(campaign_id):
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename={filename}'}
     )
+
+
+# --- Apify Webhook ---
+
+@app.route('/api/webhook/apify/<int:campaign_id>', methods=['POST'])
+def apify_webhook(campaign_id):
+    """
+    Called by Apify when a scrape run finishes.
+    Payload contains eventType and resource (run object with defaultDatasetId).
+    """
+    payload = request.json or {}
+    event_type = payload.get('eventType', '')
+    resource = payload.get('resource', {})
+    dataset_id = resource.get('defaultDatasetId')
+
+    print(f"[Webhook] Campaign {campaign_id} | event={event_type} | dataset={dataset_id}")
+
+    if event_type != 'ACTOR.RUN.SUCCEEDED' or not dataset_id:
+        db.update_campaign_status(campaign_id, 'failed')
+        return jsonify({'ok': False, 'reason': event_type}), 200
+
+    try:
+        results = fetch_dataset(dataset_id)
+        for lead in results:
+            db.insert_lead(campaign_id, lead)
+        db.update_campaign_status(campaign_id, 'completed')
+        print(f"[Webhook] Campaign {campaign_id} completed — {len(results)} leads inserted.")
+    except Exception:
+        print(f"[Webhook] Campaign {campaign_id} failed:\n{traceback.format_exc()}")
+        db.update_campaign_status(campaign_id, 'failed')
+
+    return jsonify({'ok': True}), 200
 
 
 if __name__ == '__main__':
