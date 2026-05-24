@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
         /* ── Admin-specific styles ── */
@@ -364,9 +365,10 @@
                 <span class="admin-badge">ADMIN</span>
             </div>
             <div class="topbar-right">
-                <button class="btn-sm accent" onclick="refreshCurrentView()" title="Refresh data">
-                    <i data-lucide="refresh-cw"></i> Refresh
-                </button>
+                <div style="display:flex;align-items:center;gap:0.5rem;font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim);">
+                    <span class="realtime-dot disconnected" id="rt-dot"></span>
+                    <span id="rt-label">connecting…</span>
+                </div>
             </div>
         </div>
 
@@ -600,20 +602,99 @@ const admin = {
     currentView: 'overview',
     pendingDeleteUserId: null,
     pendingDeleteUsername: '',
+    sb: null,
+    rtChannel: null,
 };
 
+// ── Helpers ────────────────────────────────────────────────────────
+function escHtml(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(str) {
+    return String(str ?? '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+function fmtDate(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+}
+function statusPill(s) {
+    const map = { completed:'pill-green', running:'pill-accent', failed:'pill-red', pending:'pill-yellow' };
+    return `<span class="pill ${map[s]||'pill-dim'}">${escHtml(s)}</span>`;
+}
+function showToast(msg, isError=false) {
+    const el = document.getElementById('admin-toast');
+    el.textContent = msg;
+    el.className = 'visible' + (isError ? ' error' : '');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.className = ''; }, 3200);
+}
+function setRtStatus(connected) {
+    const dot = document.getElementById('rt-dot');
+    const lbl = document.getElementById('rt-label');
+    dot.className = 'realtime-dot ' + (connected ? 'connected' : 'disconnected');
+    lbl.textContent = connected ? 'live' : 'offline';
+}
+
 // ── Init ───────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     lucide.createIcons();
+    // Bootstrap Supabase client from /api/config then start realtime
+    const cfg = await fetch('/api/config').then(r => r.json());
+    admin.sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key);
+    startRealtime();
     loadOverview();
 });
 
+// ── Supabase Realtime ──────────────────────────────────────────────
+function startRealtime() {
+    if (admin.rtChannel) admin.sb.removeChannel(admin.rtChannel);
+
+    admin.rtChannel = admin.sb
+        .channel('admin-watch')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, handleCampaignChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' },     handleLeadChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'users' },     handleUserChange)
+        .subscribe(status => {
+            setRtStatus(status === 'SUBSCRIBED');
+        });
+}
+
+function handleCampaignChange(payload) {
+    // Always refresh stats + whichever view is visible
+    refreshStats();
+    if (admin.currentView === 'overview') refreshOverviewTable();
+    if (admin.currentView === 'campaigns') loadCampaigns();
+}
+
+function handleLeadChange(payload) {
+    refreshStats();
+    if (admin.currentView === 'overview') refreshOverviewTable();
+    if (admin.currentView === 'campaigns') loadCampaigns();
+}
+
+function handleUserChange(payload) {
+    refreshStats();
+    if (admin.currentView === 'users') loadUsers();
+    if (admin.currentView === 'apify') loadApify();
+}
+
+// ── Stats (always live, no view dependency) ────────────────────────
+async function refreshStats() {
+    try {
+        const res = await fetch('/api/admin/stats');
+        if (!res.ok) return;
+        const s = await res.json();
+        document.getElementById('stat-users').textContent     = s.total_users      ?? '—';
+        document.getElementById('stat-campaigns').textContent = s.total_campaigns  ?? '—';
+        document.getElementById('stat-leads').textContent     = s.total_leads      ?? '—';
+        document.getElementById('stat-running').textContent   = s.running_campaigns ?? '—';
+    } catch(e) { console.error('stats fetch failed', e); }
+}
+
 // ── Navigation ─────────────────────────────────────────────────────
 const VIEW_LABELS = {
-    overview: 'Overview',
-    users: 'User Management',
-    campaigns: 'All Campaigns',
-    apify: 'Apify Control',
+    overview: 'Overview', users: 'User Management',
+    campaigns: 'All Campaigns', apify: 'Apify Control',
 };
 
 function showView(name) {
@@ -623,54 +704,55 @@ function showView(name) {
     document.getElementById('nav-' + name).classList.add('active');
     document.getElementById('topbar-view-label').textContent = VIEW_LABELS[name] || name;
     admin.currentView = name;
-    if (name === 'overview') loadOverview();
-    if (name === 'users') loadUsers();
+    if (name === 'overview')  loadOverview();
+    if (name === 'users')     loadUsers();
     if (name === 'campaigns') loadCampaigns();
-    if (name === 'apify') loadApify();
+    if (name === 'apify')     loadApify();
     lucide.createIcons();
 }
 
-function refreshCurrentView() { showView(admin.currentView); }
-
 // ── Overview ───────────────────────────────────────────────────────
 async function loadOverview() {
-    const [statsRes, campsRes] = await Promise.all([
-        fetch('/api/admin/stats'),
-        fetch('/api/admin/campaigns'),
-    ]);
-    const stats = await statsRes.json();
-    const campsData = await campsRes.json();
-    admin.campaigns = campsData.campaigns || [];
+    await Promise.all([refreshStats(), refreshOverviewTable()]);
+}
 
-    document.getElementById('stat-users').textContent = stats.total_users ?? '—';
-    document.getElementById('stat-campaigns').textContent = stats.total_campaigns ?? '—';
-    document.getElementById('stat-leads').textContent = stats.total_leads ?? '—';
-    document.getElementById('stat-running').textContent = stats.running_campaigns ?? '—';
-
-    const tbody = document.getElementById('overview-campaigns-body');
-    const recent = admin.campaigns.slice(0, 10);
-    if (!recent.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No campaigns yet.</td></tr>';
-    } else {
-        tbody.innerHTML = recent.map(c => `
-            <tr>
-                <td>${escHtml(c.name)}</td>
-                <td>${statusPill(c.status)}</td>
-                <td><span class="pill pill-dim">${c.lead_count ?? 0}</span></td>
-                <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">${fmtDate(c.created_at)}</td>
-                <td><button class="btn-sm accent" onclick="exportCampaign(${c.id}, '${escAttr(c.name)}')"><i data-lucide="download"></i> CSV</button></td>
-            </tr>
-        `).join('');
-    }
-    lucide.createIcons();
+async function refreshOverviewTable() {
+    try {
+        const res = await fetch('/api/admin/campaigns');
+        if (!res.ok) return;
+        const data = await res.json();
+        admin.campaigns = data.campaigns || [];
+        const tbody = document.getElementById('overview-campaigns-body');
+        const recent = admin.campaigns.slice(0, 10);
+        if (!recent.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No campaigns yet.</td></tr>';
+        } else {
+            tbody.innerHTML = recent.map(c => `
+                <tr>
+                    <td>${escHtml(c.name)}</td>
+                    <td>${statusPill(c.status)}</td>
+                    <td><span class="pill pill-dim">${c.lead_count ?? 0}</span></td>
+                    <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">${fmtDate(c.created_at)}</td>
+                    <td><button class="btn-sm accent" onclick="exportCampaign(${c.id},'${escAttr(c.name)}')"><i data-lucide="download"></i> CSV</button></td>
+                </tr>
+            `).join('');
+        }
+        lucide.createIcons();
+    } catch(e) { console.error('overview table fetch failed', e); }
 }
 
 // ── Users ──────────────────────────────────────────────────────────
 async function loadUsers() {
-    const res = await fetch('/api/admin/users');
-    const data = await res.json();
-    admin.users = data.users || [];
-    renderUsersTable(admin.users);
+    try {
+        const res = await fetch('/api/admin/users');
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        admin.users = data.users || [];
+        renderUsersTable(admin.users);
+    } catch(e) {
+        document.getElementById('users-table-body').innerHTML =
+            `<tr><td colspan="7" class="empty-state" style="color:var(--danger);">Failed to load users.</td></tr>`;
+    }
 }
 
 function renderUsersTable(users) {
@@ -683,26 +765,24 @@ function renderUsersTable(users) {
         const isAdmin = u.is_admin;
         const apifyOn = u.apify_enabled !== false;
         return `
-        <tr data-user-id="${u.id}" data-username="${escAttr(u.username)}" data-email="${escAttr(u.email || '')}">
+        <tr>
             <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">#${u.id}</td>
             <td>${escHtml(u.username)}${isAdmin ? ' <span class="pill pill-accent" style="font-size:0.6rem;">ADMIN</span>' : ''}</td>
-            <td style="font-family:var(--font-mono);font-size:0.8rem;">${escHtml(u.email || '—')}</td>
+            <td style="font-family:var(--font-mono);font-size:0.8rem;">${escHtml(u.email||'—')}</td>
             <td>${isAdmin ? '<span class="pill pill-accent">Founder</span>' : '<span class="pill pill-dim">User</span>'}</td>
-            <td>
-                <div class="apify-cell">
-                    ${apifyOn ? '<span class="pill pill-green">ON</span>' : '<span class="pill pill-red">OFF</span>'}
-                </div>
-            </td>
+            <td>${apifyOn ? '<span class="pill pill-green">ON</span>' : '<span class="pill pill-red">OFF</span>'}</td>
             <td style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);">${fmtDate(u.created_at)}</td>
             <td>
-                ${isAdmin ? '<span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim);">Protected</span>' : `
-                <div style="display:flex;gap:0.4rem;align-items:center;">
-                    ${apifyOn
-                        ? `<button class="btn-sm danger" onclick="toggleUserApify(${u.id}, false)"><i data-lucide="zap-off"></i> Disable Apify</button>`
-                        : `<button class="btn-sm success" onclick="toggleUserApify(${u.id}, true)"><i data-lucide="zap"></i> Enable Apify</button>`
-                    }
-                    <button class="btn-sm danger" onclick="openDelModal(${u.id}, '${escAttr(u.username)}')"><i data-lucide="trash-2"></i> Delete</button>
-                </div>`}
+                ${isAdmin
+                    ? '<span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim);">Protected</span>'
+                    : `<div style="display:flex;gap:0.4rem;align-items:center;">
+                        ${apifyOn
+                            ? `<button class="btn-sm danger" onclick="toggleUserApify(${u.id},false)"><i data-lucide="zap-off"></i> Disable Apify</button>`
+                            : `<button class="btn-sm success" onclick="toggleUserApify(${u.id},true)"><i data-lucide="zap"></i> Enable Apify</button>`
+                        }
+                        <button class="btn-sm danger" onclick="openDelModal(${u.id},'${escAttr(u.username)}')"><i data-lucide="trash-2"></i> Delete</button>
+                       </div>`
+                }
             </td>
         </tr>`;
     }).join('');
@@ -711,36 +791,34 @@ function renderUsersTable(users) {
 
 function filterUsersTable() {
     const q = document.getElementById('users-search').value.toLowerCase();
-    const filtered = admin.users.filter(u =>
-        (u.username || '').toLowerCase().includes(q) ||
-        (u.email || '').toLowerCase().includes(q)
-    );
-    renderUsersTable(filtered);
+    renderUsersTable(admin.users.filter(u =>
+        (u.username||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q)
+    ));
 }
 
 async function toggleUserApify(userId, enabled) {
     const res = await fetch(`/api/admin/apify/user/${userId}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({enabled}),
     });
-    if (res.ok) {
-        showToast(`Apify ${enabled ? 'enabled' : 'disabled'} for user`);
-        await loadUsers();
-    } else {
-        showToast('Failed to update', true);
-    }
+    showToast(res.ok ? `Apify ${enabled?'enabled':'disabled'} for user` : 'Failed to update', !res.ok);
+    // Realtime will trigger re-render automatically; no manual reload needed
 }
 
-function exportUsersCSV() {
-    window.location.href = '/api/admin/export/all-users';
-}
+function exportUsersCSV() { window.location.href = '/api/admin/export/all-users'; }
 
 // ── Campaigns ──────────────────────────────────────────────────────
 async function loadCampaigns() {
-    const res = await fetch('/api/admin/campaigns');
-    const data = await res.json();
-    admin.campaigns = data.campaigns || [];
-    renderCampsTable(admin.campaigns);
+    try {
+        const res = await fetch('/api/admin/campaigns');
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        admin.campaigns = data.campaigns || [];
+        renderCampsTable(admin.campaigns);
+    } catch(e) {
+        document.getElementById('camps-table-body').innerHTML =
+            `<tr><td colspan="8" class="empty-state" style="color:var(--danger);">Failed to load campaigns.</td></tr>`;
+    }
 }
 
 function renderCampsTable(camps) {
@@ -754,11 +832,11 @@ function renderCampsTable(camps) {
             <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">#${c.id}</td>
             <td>${escHtml(c.name)}</td>
             <td style="font-family:var(--font-mono);font-size:0.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escAttr(c.search_query)}">${escHtml(c.search_query)}</td>
-            <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">${escHtml(c.location || '—')}</td>
+            <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">${escHtml(c.location||'—')}</td>
             <td>${statusPill(c.status)}</td>
-            <td><span class="pill pill-dim">${c.lead_count ?? 0}</span></td>
+            <td><span class="pill pill-dim">${c.lead_count??0}</span></td>
             <td style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);">${fmtDate(c.created_at)}</td>
-            <td><button class="btn-sm accent" onclick="exportCampaign(${c.id}, '${escAttr(c.name)}')"><i data-lucide="download"></i> CSV</button></td>
+            <td><button class="btn-sm accent" onclick="exportCampaign(${c.id},'${escAttr(c.name)}')"><i data-lucide="download"></i> CSV</button></td>
         </tr>
     `).join('');
     lucide.createIcons();
@@ -766,24 +844,27 @@ function renderCampsTable(camps) {
 
 function filterCampsTable() {
     const q = document.getElementById('camps-search').value.toLowerCase();
-    const filtered = admin.campaigns.filter(c =>
-        (c.name || '').toLowerCase().includes(q) ||
-        (c.search_query || '').toLowerCase().includes(q) ||
-        (c.location || '').toLowerCase().includes(q)
-    );
-    renderCampsTable(filtered);
+    renderCampsTable(admin.campaigns.filter(c =>
+        (c.name||'').toLowerCase().includes(q) ||
+        (c.search_query||'').toLowerCase().includes(q) ||
+        (c.location||'').toLowerCase().includes(q)
+    ));
 }
 
-function exportCampaign(id, name) {
-    window.location.href = `/api/admin/campaigns/${id}/export`;
-}
+function exportCampaign(id) { window.location.href = `/api/admin/campaigns/${id}/export`; }
 
 // ── Apify ──────────────────────────────────────────────────────────
 async function loadApify() {
-    const res = await fetch('/api/admin/users');
-    const data = await res.json();
-    admin.users = data.users || [];
-    renderApifyTable(admin.users.filter(u => !u.is_admin));
+    try {
+        const res = await fetch('/api/admin/users');
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        admin.users = data.users || [];
+        renderApifyTable(admin.users.filter(u => !u.is_admin));
+    } catch(e) {
+        document.getElementById('apify-table-body').innerHTML =
+            `<tr><td colspan="4" class="empty-state" style="color:var(--danger);">Failed to load.</td></tr>`;
+    }
 }
 
 function renderApifyTable(users) {
@@ -793,15 +874,15 @@ function renderApifyTable(users) {
         return;
     }
     tbody.innerHTML = users.map(u => {
-        const apifyOn = u.apify_enabled !== false;
+        const on = u.apify_enabled !== false;
         return `
         <tr>
             <td>${escHtml(u.username)}</td>
-            <td style="font-family:var(--font-mono);font-size:0.8rem;">${escHtml(u.email || '—')}</td>
-            <td>${apifyOn ? '<span class="pill pill-green">Enabled</span>' : '<span class="pill pill-red">Disabled</span>'}</td>
+            <td style="font-family:var(--font-mono);font-size:0.8rem;">${escHtml(u.email||'—')}</td>
+            <td>${on ? '<span class="pill pill-green">Enabled</span>' : '<span class="pill pill-red">Disabled</span>'}</td>
             <td>
-                <label class="toggle" title="${apifyOn ? 'Click to disable' : 'Click to enable'}">
-                    <input type="checkbox" ${apifyOn ? 'checked' : ''} onchange="toggleUserApifyFromApifyTab(${u.id}, this.checked)">
+                <label class="toggle">
+                    <input type="checkbox" ${on?'checked':''} onchange="toggleUserApifyFromApifyTab(${u.id},this.checked)">
                     <span class="toggle-slider"></span>
                 </label>
             </td>
@@ -812,31 +893,20 @@ function renderApifyTable(users) {
 
 async function toggleUserApifyFromApifyTab(userId, enabled) {
     const res = await fetch(`/api/admin/apify/user/${userId}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({enabled}),
     });
-    if (res.ok) {
-        showToast(`Apify ${enabled ? 'enabled' : 'disabled'}`);
-        await loadApify();
-    } else {
-        showToast('Failed to update', true);
-        await loadApify();
-    }
+    showToast(res.ok ? `Apify ${enabled?'enabled':'disabled'}` : 'Failed to update', !res.ok);
+    // Realtime fires handleUserChange → loadApify() automatically
 }
 
 async function setApifyGlobal(enabled) {
-    const label = enabled ? 'enable' : 'disable';
-    if (!confirm(`Are you sure you want to ${label} Apify for ALL users?`)) return;
+    if (!confirm(`${enabled?'Enable':'Disable'} Apify for ALL users?`)) return;
     const res = await fetch('/api/admin/apify/global', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled }),
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({enabled}),
     });
-    if (res.ok) {
-        showToast(`Apify ${enabled ? 'enabled' : 'disabled'} for all users`);
-        await loadApify();
-    } else {
-        showToast('Failed', true);
-    }
+    showToast(res.ok ? `Apify ${enabled?'enabled':'disabled'} for all users` : 'Failed', !res.ok);
 }
 
 // ── Delete modal ───────────────────────────────────────────────────
@@ -846,68 +916,33 @@ function openDelModal(userId, username) {
     document.getElementById('del-modal-username').textContent = username;
     document.getElementById('del-modal').classList.add('open');
 }
-
 function closeDelModal() {
     admin.pendingDeleteUserId = null;
-    admin.pendingDeleteUsername = '';
     document.getElementById('del-modal').classList.remove('open');
 }
-
 async function confirmDeleteUser() {
     if (!admin.pendingDeleteUserId) return;
     const btn = document.getElementById('del-modal-confirm');
     btn.disabled = true; btn.textContent = 'Deleting…';
     try {
-        const res = await fetch(`/api/admin/users/${admin.pendingDeleteUserId}`, { method: 'DELETE' });
+        const res = await fetch(`/api/admin/users/${admin.pendingDeleteUserId}`, {method:'DELETE'});
         if (res.ok) {
             showToast(`User "${admin.pendingDeleteUsername}" deleted`);
             closeDelModal();
-            await loadUsers();
+            // Realtime fires handleUserChange → re-renders users/apify views automatically
         } else {
             const d = await res.json();
             showToast(d.error || 'Failed to delete', true);
         }
-    } finally {
-        btn.disabled = false; btn.textContent = 'Delete User';
-    }
+    } finally { btn.disabled = false; btn.textContent = 'Delete User'; }
 }
 
 // ── Auth ───────────────────────────────────────────────────────────
 async function adminLogout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch('/api/auth/logout', {method:'POST'});
     window.location.href = '/login';
 }
 
-// ── Helpers ────────────────────────────────────────────────────────
-function escHtml(str) {
-    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function escAttr(str) {
-    return String(str ?? '').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-}
-
-function fmtDate(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
-}
-
-function statusPill(s) {
-    const map = {
-        completed: 'pill-green', running: 'pill-accent', failed: 'pill-red', pending: 'pill-yellow',
-    };
-    return `<span class="pill ${map[s] || 'pill-dim'}">${escHtml(s)}</span>`;
-}
-
-function showToast(msg, isError = false) {
-    const el = document.getElementById('admin-toast');
-    el.textContent = msg;
-    el.className = 'visible' + (isError ? ' error' : '');
-    clearTimeout(el._timer);
-    el._timer = setTimeout(() => { el.className = ''; }, 3000);
-}
-
-// Close modal on overlay click
 document.getElementById('del-modal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeDelModal();
 });

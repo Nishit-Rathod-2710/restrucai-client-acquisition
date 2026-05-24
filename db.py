@@ -67,15 +67,18 @@ def get_all_campaigns_with_user():
 
 
 def get_global_stats():
-    users_res = _supabase.table('users').select('id', count='exact').neq('is_admin', True).execute()
-    camps_res = _supabase.table('campaigns').select('id', count='exact').execute()
-    leads_res = _supabase.table('leads').select('id', count='exact').execute()
-    running_res = _supabase.table('campaigns').select('id', count='exact').eq('status', 'running').execute()
+    users_res = _supabase.table('users').select('id, is_admin').execute()
+    camps_res = _supabase.table('campaigns').select('id, status').execute()
+    leads_res = _supabase.table('leads').select('id').execute()
+    total_users = sum(1 for u in (users_res.data or []) if not u.get('is_admin'))
+    total_campaigns = len(camps_res.data or [])
+    total_leads = len(leads_res.data or [])
+    running = sum(1 for c in (camps_res.data or []) if c.get('status') == 'running')
     return {
-        'total_users': users_res.count or 0,
-        'total_campaigns': camps_res.count or 0,
-        'total_leads': leads_res.count or 0,
-        'running_campaigns': running_res.count or 0,
+        'total_users': total_users,
+        'total_campaigns': total_campaigns,
+        'total_leads': total_leads,
+        'running_campaigns': running,
     }
 
 
