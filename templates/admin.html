@@ -704,6 +704,7 @@ const admin = {
     sb: null,
     rtChannel: null,
     activityChart: null,
+    _pollInterval: null,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -732,7 +733,7 @@ function setRtStatus(connected) {
     const dot = document.getElementById('rt-dot');
     const lbl = document.getElementById('rt-label');
     dot.className = 'realtime-dot ' + (connected ? 'connected' : 'disconnected');
-    lbl.textContent = connected ? 'live' : 'offline';
+    lbl.textContent = connected ? 'live' : 'polling (5s)';
 }
 
 // ── Init ───────────────────────────────────────────────────────────
@@ -760,9 +761,30 @@ function startRealtime() {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'campaigns' }, handleCampaignChange)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' },     handleLeadChange)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'users' },     handleUserChange)
-        .subscribe(status => {
-            setRtStatus(status === 'SUBSCRIBED');
+        .subscribe((status, err) => {
+            console.log('[Realtime] status:', status, err || '');
+            if (status === 'SUBSCRIBED') {
+                setRtStatus(true);
+                // Clear polling fallback — realtime is working
+                if (admin._pollInterval) { clearInterval(admin._pollInterval); admin._pollInterval = null; }
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                setRtStatus(false);
+                startPollingFallback();
+            }
         });
+}
+
+// Polling fallback — kicks in when realtime can't connect (RLS blocks or Replication not enabled)
+function startPollingFallback() {
+    if (admin._pollInterval) return; // already running
+    console.warn('[Realtime] Falling back to polling every 5s');
+    admin._pollInterval = setInterval(() => {
+        refreshStats();
+        if (admin.currentView === 'overview') { refreshOverviewTable(); refreshActivityChart(); }
+        if (admin.currentView === 'campaigns') loadCampaigns();
+        if (admin.currentView === 'users') loadUsers();
+        if (admin.currentView === 'apify') loadApify();
+    }, 5000);
 }
 
 function handleCampaignChange(payload) {
