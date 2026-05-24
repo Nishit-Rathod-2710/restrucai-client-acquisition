@@ -28,6 +28,8 @@ CALL_STATUSES = [
     'Interested',
     'Follow-Up',
 ]
+# Canonical list exposed to frontend
+
 
 
 def login_required(f):
@@ -104,6 +106,15 @@ def me():
     if 'user_id' not in session:
         return jsonify({'logged_in': False})
     return jsonify({'logged_in': True, 'username': session.get('username')})
+
+
+@app.route('/api/config', methods=['GET'])
+def config():
+    return jsonify({
+        'call_statuses': CALL_STATUSES,
+        'supabase_url': os.getenv('SUPABASE_URL'),
+        'supabase_key': os.getenv('SUPABASE_KEY'),
+    })
 
 
 # --- App ---

@@ -49,11 +49,19 @@ def update_campaign_status(campaign_id, status):
 
 
 def get_campaigns():
-    res = _supabase.table('campaigns').select('*, leads(count)').order('created_at', desc=True).execute()
+    res = _supabase.table('campaigns').select(
+        '*, leads(count), lead_statuses:leads(call_status)'
+    ).order('created_at', desc=True).execute()
     rows = res.data
     for row in rows:
         count_list = row.pop('leads', [])
         row['lead_count'] = count_list[0]['count'] if count_list else 0
+        # Build status summary {status: count}
+        status_summary = {}
+        for lead in row.pop('lead_statuses', []):
+            s = lead.get('call_status') or 'Need to Call'
+            status_summary[s] = status_summary.get(s, 0) + 1
+        row['status_summary'] = status_summary
     return rows
 
 

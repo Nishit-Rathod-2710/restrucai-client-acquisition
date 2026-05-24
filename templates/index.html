@@ -8,11 +8,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="dark-theme">
     <div class="scanlines"></div>
     <div class="app-container">
+
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo">
@@ -27,9 +29,7 @@
 
             <div class="nav-section">
                 <h4>DATA RECORDS</h4>
-                <div id="campaign-list" class="campaign-list">
-                    <!-- Campaigns injected here -->
-                </div>
+                <div id="campaign-list" class="campaign-list"></div>
             </div>
 
             <div class="sidebar-footer">
@@ -45,6 +45,13 @@
 
         <!-- Main Panel -->
         <main class="main-content">
+
+            <!-- Top bar -->
+            <div class="topbar">
+                <span class="topbar-title">Sales &amp; Client Acquisition&nbsp;&nbsp;|&nbsp;&nbsp;Internal Team Dashboard</span>
+                <div id="realtime-indicator" class="realtime-dot connected" title="Realtime connected"></div>
+            </div>
+
             <!-- View: New Search -->
             <section id="view-new-search" class="view active">
                 <header class="section-header">
@@ -148,15 +155,13 @@
                                 <th>NOTES</th>
                             </tr>
                         </thead>
-                        <tbody id="leads-tbody">
-                            <!-- Leads injected here -->
-                        </tbody>
+                        <tbody id="leads-tbody"></tbody>
                     </table>
                 </div>
             </section>
         </main>
 
-        <!-- Side Drawer for Lead Details -->
+        <!-- Side Drawer -->
         <div id="side-drawer" class="side-drawer">
             <div class="drawer-header">
                 <h3>ENTITY_DATA</h3>
@@ -164,9 +169,7 @@
                     <i data-lucide="x"></i>
                 </button>
             </div>
-            <div class="drawer-content" id="drawer-content">
-                <!-- details -->
-            </div>
+            <div class="drawer-content" id="drawer-content"></div>
         </div>
         <div id="drawer-overlay" class="drawer-overlay" onclick="app.closeDrawer()"></div>
     </div>
@@ -197,8 +200,6 @@
     </div>
 
     <script src="/static/js/app.js"></script>
-    <script>
-        lucide.createIcons();
-    </script>
+    <script>lucide.createIcons();</script>
 </body>
 </html>

@@ -75,14 +75,11 @@ h1, h2, h3, h4, h5 {
 
 .logo {
     display: flex;
-    align-items: center;
-    margin-bottom: 2rem;
-    min-height: 48px;
+    align-items: stretch;
+    margin-bottom: 0;
 }
 
-.logo i {
-    color: var(--accent);
-}
+.logo i { color: var(--accent); }
 
 .btn-primary {
     background-color: var(--accent);
@@ -100,6 +97,8 @@ h1, h2, h3, h4, h5 {
     position: relative;
     overflow: hidden;
     transition: all 0.2s;
+    margin-bottom: 1rem;
+    width: 100%;
 }
 
 .btn-primary:hover {
@@ -153,12 +152,39 @@ h1, h2, h3, h4, h5 {
     text-overflow: ellipsis;
 }
 
+.camp-item-date {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-bottom: 0.35rem;
+}
+
 .camp-item-meta {
     display: flex;
     justify-content: space-between;
     font-size: 0.75rem;
     font-family: var(--font-mono);
     color: var(--text-dim);
+}
+
+.camp-item-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 0.4rem;
+}
+
+.sidebar-status-pill {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 1px 6px;
+    border: 1px solid;
+    border-radius: 20px;
+    white-space: nowrap;
 }
 
 .status-dot {
@@ -754,20 +780,66 @@ textarea::placeholder {
     display: block;
 }
 
-/* Brand logo — sidebar (compact) */
+/* Brand logo — sidebar (same visual height as NEW QUERY button) */
 .brand-logo-sm {
-    display: inline-flex;
-    align-items: baseline;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
     font-family: 'Nunito', 'Plus Jakarta Sans', sans-serif;
     font-weight: 900;
-    font-size: 1.55rem;
     letter-spacing: 0px;
     line-height: 1;
+    box-sizing: border-box;
+    padding: 0.75rem 1rem;
+    height: auto;
+    font-size: 2.71rem;
 }
 
 .brand-re    { color: #00c853; }
 .brand-struc { color: #ffffff; }
 .brand-ai    { color: #00c853; }
+
+/* Top bar */
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 1rem 3rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 2rem;
+}
+
+.topbar-title {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    text-align: center;
+    line-height: 1;
+}
+
+/* Realtime indicator dot */
+.realtime-dot {
+    position: absolute;
+    right: 1.5rem;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.realtime-dot.connected {
+    background: var(--success);
+    box-shadow: 0 0 6px rgba(0, 230, 118, 0.6);
+    animation: pulse 2s infinite alternate;
+}
+
+.realtime-dot.disconnected {
+    background: var(--danger);
+}
 
 /* Sidebar footer: user + logout */
 .sidebar-footer {
