@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>reStrucAi — Lead Gen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="dark-theme">
+    <div class="scanlines"></div>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="brand-logo-sm">
+                    <span class="brand-re">re</span><span class="brand-struc">Struc</span><span class="brand-ai">Ai</span>
+                </span>
+            </div>
+
+            <button id="new-search-btn" class="btn-primary" onclick="app.showNewSearch()">
+                <i data-lucide="plus"></i> NEW QUERY
+            </button>
+
+            <div class="nav-section">
+                <h4>DATA RECORDS</h4>
+                <div id="campaign-list" class="campaign-list">
+                    <!-- Campaigns injected here -->
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <i data-lucide="user" style="width:14px;height:14px;flex-shrink:0;"></i>
+                    <span id="sidebar-username">{{ username }}</span>
+                </div>
+                <button class="btn-logout" onclick="app.logout()" title="Logout">
+                    <i data-lucide="log-out" style="width:14px;height:14px;"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Panel -->
+        <main class="main-content">
+            <!-- View: New Search -->
+            <section id="view-new-search" class="view active">
+                <header class="section-header">
+                    <h2>INITIATE DIRECTIVE</h2>
+                    <p class="subtitle">Enter target parameters. NLP engine will parse location and intent.</p>
+                </header>
+
+                <div class="card terminal-card">
+                    <div class="card-header">
+                        <div class="dots"><span></span><span></span><span></span></div>
+                        <span class="header-title">QUERY_INPUT</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="input-wrapper">
+                            <span class="prompt-sym">>&nbsp;</span>
+                            <textarea id="nl-input" rows="5" placeholder="e.g. Identify 50 top-rated dental clinics in Manhattan, NY with active websites..."></textarea>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <button id="run-btn" class="btn-run" onclick="app.runSearch()">
+                            [ EXECUTE ]
+                        </button>
+                    </div>
+                </div>
+
+                <div id="status-toast" class="status-toast hidden">
+                    <div class="glitch-spinner"></div>
+                    <span id="status-text">Processing Directive...</span>
+                </div>
+            </section>
+
+            <!-- View: Campaign Details -->
+            <section id="view-campaign" class="view hidden">
+                <header class="campaign-header card">
+                    <div class="camp-info">
+                        <h2 id="camp-title">Dataset ID</h2>
+                        <div class="camp-meta">
+                            <span class="badge" id="camp-status">RUNNING</span>
+                            <span class="meta-item"><i data-lucide="search"></i> <span id="camp-query">...</span></span>
+                            <span class="meta-item"><i data-lucide="map-pin"></i> <span id="camp-loc">...</span></span>
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <button id="enrich-btn" class="btn-outline btn-enrich" onclick="app.startEnrichment()">
+                            <i data-lucide="zap"></i> FIND EMAILS
+                        </button>
+                        <button id="export-btn" class="btn-outline" onclick="app.exportCsv()">
+                            <i data-lucide="download"></i> EXTRACT CSV
+                        </button>
+                        <button id="delete-btn" class="btn-danger" onclick="app.deleteCampaign()">
+                            <i data-lucide="trash-2"></i> PURGE
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Enrichment Progress Bar -->
+                <div id="enrich-progress-bar" class="enrich-progress hidden">
+                    <div class="enrich-progress-header">
+                        <span class="enrich-label">
+                            <i data-lucide="zap" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
+                            FINDING EMAILS
+                        </span>
+                        <span id="enrich-counter" class="enrich-counter">0 / 0 processed • 0 found</span>
+                    </div>
+                    <div class="enrich-bar-track">
+                        <div id="enrich-bar-fill" class="enrich-bar-fill" style="width:0%"></div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">TOTAL EXTRACTS</div>
+                        <div class="stat-val accent" id="stat-total">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">MEAN RATING</div>
+                        <div class="stat-val" id="stat-rating">0.0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">URL ACTIVE</div>
+                        <div class="stat-val" id="stat-website">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">EMAILS FOUND</div>
+                        <div class="stat-val" id="stat-email">0%</div>
+                    </div>
+                </div>
+
+                <div class="table-container card">
+                    <table class="leads-table">
+                        <thead>
+                            <tr>
+                                <th>ENTITY NAME</th>
+                                <th>CLASS</th>
+                                <th>RATING</th>
+                                <th>REV</th>
+                                <th>COMMS</th>
+                                <th>EMAIL</th>
+                                <th>URL</th>
+                                <th>STATUS</th>
+                                <th>NOTES</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leads-tbody">
+                            <!-- Leads injected here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <!-- Side Drawer for Lead Details -->
+        <div id="side-drawer" class="side-drawer">
+            <div class="drawer-header">
+                <h3>ENTITY_DATA</h3>
+                <button class="btn-icon" onclick="app.closeDrawer()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="drawer-content" id="drawer-content">
+                <!-- details -->
+            </div>
+        </div>
+        <div id="drawer-overlay" class="drawer-overlay" onclick="app.closeDrawer()"></div>
+    </div>
+
+    <!-- Notes Modal -->
+    <div id="notes-modal-overlay" class="notes-modal-overlay" onclick="app.closeNotesModal()">
+        <div class="notes-modal" onclick="event.stopPropagation()">
+            <div class="notes-modal-header">
+                <div class="notes-modal-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    <span id="notes-modal-lead-name">Add Note</span>
+                </div>
+                <button class="notes-modal-close" onclick="app.closeNotesModal()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="notes-modal-body">
+                <textarea id="notes-modal-textarea" class="notes-modal-textarea" placeholder="Write your note here..."></textarea>
+            </div>
+            <div class="notes-modal-footer">
+                <span class="notes-modal-hint">Ctrl+Enter to save · Esc to cancel</span>
+                <div class="notes-modal-actions">
+                    <button class="notes-btn-cancel" onclick="app.closeNotesModal()">Cancel</button>
+                    <button class="notes-btn-save" onclick="app.saveNotesModal()">Save Note</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

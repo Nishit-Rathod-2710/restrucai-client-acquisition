@@ -1,0 +1,20 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Local DB (migrated to Supabase)
+leads.db
+
+# Claude internal
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db

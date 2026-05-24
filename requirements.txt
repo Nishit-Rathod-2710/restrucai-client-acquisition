@@ -1,0 +1,7 @@
+flask
+flask-bcrypt
+python-dotenv
+apify-client
+openai
+requests
+supabase

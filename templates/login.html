@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>reStrucAi — Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+
+        .auth-wrapper {
+            width: 100%;
+            max-width: 420px;
+            padding: 1rem;
+        }
+
+        .auth-logo {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        /* reStrucAi brand logo — login page (large) */
+        .brand-logo {
+            display: inline-flex;
+            align-items: baseline;
+            font-family: 'Nunito', 'Plus Jakarta Sans', sans-serif;
+            font-weight: 900;
+            font-size: 3.4rem;
+            line-height: 1;
+            letter-spacing: 0px;
+        }
+
+        .brand-re    { color: #00c853; }
+        .brand-struc { color: #ffffff; }
+        .brand-ai    { color: #00c853; }
+
+        .auth-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+        }
+
+        .auth-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .auth-tab {
+            flex: 1;
+            padding: 1rem;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+
+        .auth-tab.active {
+            color: var(--accent);
+            border-bottom: 2px solid var(--accent);
+            margin-bottom: -1px;
+        }
+
+        .auth-tab:hover:not(.active) { color: var(--text-light); }
+
+        .auth-body { padding: 2rem; }
+
+        .auth-form { display: none; flex-direction: column; gap: 1.25rem; }
+        .auth-form.active { display: flex; }
+
+        .field-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            letter-spacing: 1px;
+            margin-bottom: 0.4rem;
+            text-transform: uppercase;
+        }
+
+        .auth-input {
+            width: 100%;
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-light);
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            padding: 0.75rem 1rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .auth-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+        }
+
+        .auth-input::placeholder { color: var(--text-dim); }
+
+        .btn-auth {
+            width: 100%;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            padding: 0.85rem;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 0.25rem;
+        }
+
+        .btn-auth:hover { background: var(--accent-hover); box-shadow: 0 0 15px var(--accent-glow); }
+        .btn-auth:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .auth-error {
+            background: rgba(255,77,79,0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            padding: 0.6rem 0.9rem;
+            display: none;
+        }
+
+        .auth-error.visible { display: block; }
+    </style>
+</head>
+<body class="dark-theme">
+    <div class="scanlines"></div>
+
+    <div class="auth-wrapper">
+        <div class="auth-logo">
+            <div class="brand-logo">
+                <span class="brand-re">re</span><span class="brand-struc">Struc</span><span class="brand-ai">Ai</span>
+            </div>
+        </div>
+
+        <div class="auth-card">
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">LOGIN</button>
+                <button class="auth-tab" id="tab-signup" onclick="switchTab('signup')">SIGN UP</button>
+            </div>
+
+            <div class="auth-body">
+                <!-- Login form -->
+                <form class="auth-form active" id="form-login" onsubmit="handleLogin(event)">
+                    <div id="login-error" class="auth-error"></div>
+                    <div>
+                        <div class="field-label">Username</div>
+                        <input class="auth-input" id="login-username" type="text" placeholder="your_username" autocomplete="username" required>
+                    </div>
+                    <div>
+                        <div class="field-label">Password</div>
+                        <input class="auth-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required>
+                    </div>
+                    <button class="btn-auth" type="submit" id="btn-login">[ LOGIN ]</button>
+                </form>
+
+                <!-- Signup form -->
+                <form class="auth-form" id="form-signup" onsubmit="handleSignup(event)">
+                    <div id="signup-error" class="auth-error"></div>
+                    <div>
+                        <div class="field-label">Username</div>
+                        <input class="auth-input" id="signup-username" type="text" placeholder="choose_username" autocomplete="username" required>
+                    </div>
+                    <div>
+                        <div class="field-label">Email</div>
+                        <input class="auth-input" id="signup-email" type="email" placeholder="you@example.com" autocomplete="email" required>
+                    </div>
+                    <div>
+                        <div class="field-label">Password</div>
+                        <input class="auth-input" id="signup-password" type="password" placeholder="min. 6 characters" autocomplete="new-password" required>
+                    </div>
+                    <div>
+                        <div class="field-label">Confirm Password</div>
+                        <input class="auth-input" id="signup-confirm" type="password" placeholder="repeat password" autocomplete="new-password" required>
+                    </div>
+                    <button class="btn-auth" type="submit" id="btn-signup">[ CREATE ACCOUNT ]</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+            document.getElementById('tab-signup').classList.toggle('active', tab === 'signup');
+            document.getElementById('form-login').classList.toggle('active', tab === 'login');
+            document.getElementById('form-signup').classList.toggle('active', tab === 'signup');
+            document.getElementById('login-error').classList.remove('visible');
+            document.getElementById('signup-error').classList.remove('visible');
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-login');
+            const errEl = document.getElementById('login-error');
+            errEl.classList.remove('visible');
+            btn.disabled = true;
+            btn.textContent = '[ LOGGING IN... ]';
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('login-username').value.trim(),
+                        password: document.getElementById('login-password').value,
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    errEl.textContent = data.error || 'Login failed';
+                    errEl.classList.add('visible');
+                }
+            } catch {
+                errEl.textContent = 'Network error. Try again.';
+                errEl.classList.add('visible');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '[ LOGIN ]';
+            }
+        }
+
+        async function handleSignup(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btn-signup');
+            const errEl = document.getElementById('signup-error');
+            errEl.classList.remove('visible');
+
+            const pw = document.getElementById('signup-password').value;
+            const confirm = document.getElementById('signup-confirm').value;
+            if (pw !== confirm) {
+                errEl.textContent = 'Passwords do not match';
+                errEl.classList.add('visible');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '[ CREATING... ]';
+
+            try {
+                const res = await fetch('/api/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: document.getElementById('signup-username').value.trim(),
+                        email:    document.getElementById('signup-email').value.trim(),
+                        password: pw,
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    errEl.textContent = data.error || 'Signup failed';
+                    errEl.classList.add('visible');
+                }
+            } catch {
+                errEl.textContent = 'Network error. Try again.';
+                errEl.classList.add('visible');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '[ CREATE ACCOUNT ]';
+            }
+        }
+    </script>
+</body>
+</html>
