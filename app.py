@@ -211,6 +211,16 @@ def admin_campaigns():
     return jsonify({'campaigns': campaigns})
 
 
+@app.route('/api/admin/users/<int:user_id>/campaigns', methods=['GET'])
+@admin_required
+def admin_user_campaigns(user_id):
+    target = db.get_user_by_id(user_id)
+    if not target:
+        return jsonify({'error': 'User not found'}), 404
+    campaigns = db.get_campaigns_by_user(user_id)
+    return jsonify({'campaigns': campaigns, 'user': {'id': target['id'], 'username': target['username']}})
+
+
 @app.route('/api/admin/campaigns/<int:campaign_id>/export', methods=['GET'])
 @admin_required
 def admin_export_campaign(campaign_id):
@@ -269,7 +279,7 @@ def admin_export_users():
 @app.route('/api/campaigns', methods=['GET'])
 @login_required
 def get_campaigns():
-    campaigns = db.get_campaigns()
+    campaigns = db.get_campaigns(user_id=session['user_id'])
     return jsonify({'campaigns': campaigns})
 
 
@@ -293,7 +303,8 @@ def create_campaign():
         name=campaign_name,
         query=parsed['search_query'],
         location=parsed['location'],
-        max_results=parsed['max_results']
+        max_results=parsed['max_results'],
+        user_id=session['user_id']
     )
 
     def scrape_job(cid, q, loc, mx):

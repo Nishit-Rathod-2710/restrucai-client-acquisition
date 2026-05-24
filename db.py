@@ -57,13 +57,25 @@ def set_apify_enabled_user(user_id, enabled: bool):
 
 def get_all_campaigns_with_user():
     res = _supabase.table('campaigns').select(
-        '*, leads(count), lead_statuses:leads(call_status)'
+        '*, leads(count), users(username)'
     ).order('created_at', desc=True).execute()
     rows = res.data
     for row in rows:
         count_list = row.pop('leads', [])
         row['lead_count'] = count_list[0]['count'] if count_list else 0
-        row.pop('lead_statuses', None)
+        user_obj = row.pop('users', None)
+        row['username'] = user_obj['username'] if isinstance(user_obj, dict) else '—'
+    return rows
+
+
+def get_campaigns_by_user(user_id):
+    res = _supabase.table('campaigns').select(
+        '*, leads(count)'
+    ).eq('user_id', user_id).order('created_at', desc=True).execute()
+    rows = res.data
+    for row in rows:
+        count_list = row.pop('leads', [])
+        row['lead_count'] = count_list[0]['count'] if count_list else 0
     return rows
 
 
@@ -85,8 +97,9 @@ def get_global_stats():
 
 # --- Campaigns ---
 
-def create_campaign(name, query, location, max_results):
+def create_campaign(name, query, location, max_results, user_id=None):
     res = _supabase.table('campaigns').insert({
+        'user_id': user_id,
         'name': name,
         'search_query': query,
         'location': location,
@@ -100,15 +113,17 @@ def update_campaign_status(campaign_id, status):
     _supabase.table('campaigns').update({'status': status}).eq('id', campaign_id).execute()
 
 
-def get_campaigns():
-    res = _supabase.table('campaigns').select(
+def get_campaigns(user_id=None):
+    q = _supabase.table('campaigns').select(
         '*, leads(count), lead_statuses:leads(call_status)'
-    ).order('created_at', desc=True).execute()
+    )
+    if user_id is not None:
+        q = q.eq('user_id', user_id)
+    res = q.order('created_at', desc=True).execute()
     rows = res.data
     for row in rows:
         count_list = row.pop('leads', [])
         row['lead_count'] = count_list[0]['count'] if count_list else 0
-        # Build status summary {status: count}
         status_summary = {}
         for lead in row.pop('lead_statuses', []):
             s = lead.get('call_status') or 'Need to Call'

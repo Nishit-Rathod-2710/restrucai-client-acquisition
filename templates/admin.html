@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
         /* ── Admin-specific styles ── */
@@ -310,6 +311,46 @@
 
         /* Apify table status inline */
         .apify-cell { display: flex; align-items: center; gap: 0.6rem; }
+
+        /* Activity graph card */
+        .graph-card {
+            background: var(--bg-panel); border: 1px solid var(--border-color);
+            margin-bottom: 2rem; padding: 1.5rem;
+        }
+        .graph-card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 1.25rem;
+        }
+        .graph-card-title {
+            font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 0.5rem;
+        }
+        .graph-card-title i { width: 14px; height: 14px; }
+        .graph-legend { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .graph-legend-item {
+            display: flex; align-items: center; gap: 0.35rem;
+            font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim);
+        }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        #activity-chart-wrap { position: relative; height: 200px; }
+
+        /* User-campaigns modal */
+        .modal-box.wide { width: 700px; max-width: calc(100vw - 2rem); }
+        .user-modal-header-info {
+            font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-dim);
+            margin-top: 0.2rem;
+        }
+        .modal-body.no-pad { padding: 0; }
+        .modal-camps-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .modal-camps-table th, .modal-camps-table td {
+            padding: 0.7rem 1.1rem; text-align: left; border-bottom: 1px solid var(--border-color);
+        }
+        .modal-camps-table th {
+            font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1px; background: var(--bg-dark);
+        }
+        .modal-camps-table td { color: var(--text-main); }
+        .modal-camps-scroll { max-height: 380px; overflow-y: auto; }
     </style>
 </head>
 <body class="dark-theme">
@@ -347,7 +388,7 @@
                 <div class="admin-avatar">NR</div>
                 <div class="admin-profile-info">
                     <div class="admin-profile-name">Nishit Rathod</div>
-                    <div class="admin-profile-role">&#x2726; Founder &mdash; reStrucAI</div>
+                    <div class="admin-profile-role">Founder reStrucAI</div>
                 </div>
             </div>
             <button class="btn-logout-admin" onclick="adminLogout()">
@@ -402,6 +443,26 @@
                         <div class="stat-tile-label">Running Now</div>
                         <div class="stat-tile-val" id="stat-running">—</div>
                         <i data-lucide="activity" class="stat-tile-icon"></i>
+                    </div>
+                </div>
+
+                <!-- Activity graph -->
+                <div class="graph-card">
+                    <div class="graph-card-header">
+                        <div class="graph-card-title">
+                            <i data-lucide="trending-up"></i> User Activity — Campaigns
+                        </div>
+                        <div style="display:flex;align-items:center;gap:1.25rem;">
+                            <div class="graph-legend" id="graph-legend"></div>
+                            <select id="chart-range" onchange="refreshActivityChart()" style="background:var(--bg-dark);border:1px solid var(--border-color);color:var(--text-dim);font-family:var(--font-mono);font-size:0.72rem;padding:0.25rem 0.5rem;cursor:pointer;outline:none;">
+                                <option value="7">7 days</option>
+                                <option value="14" selected>14 days</option>
+                                <option value="30">30 days</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="activity-chart-wrap">
+                        <canvas id="activity-chart"></canvas>
                     </div>
                 </div>
 
@@ -465,6 +526,7 @@
                                     <th>Role</th>
                                     <th>Apify</th>
                                     <th>Joined</th>
+                                    <th>Campaigns</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -497,7 +559,7 @@
                             <thead>
                                 <tr>
                                     <th>ID</th>
-                                    <th>Campaign Name</th>
+                                    <th>Campaign / User</th>
                                     <th>Query</th>
                                     <th>Location</th>
                                     <th>Status</th>
@@ -573,6 +635,43 @@
     </div><!-- /admin-main -->
 </div><!-- /admin-layout -->
 
+<!-- User campaigns modal -->
+<div class="modal-overlay" id="user-camps-modal">
+    <div class="modal-box wide">
+        <div class="modal-header">
+            <div>
+                <div class="modal-title" id="user-camps-modal-title">User Campaigns</div>
+                <div class="user-modal-header-info" id="user-camps-modal-sub"></div>
+            </div>
+            <button class="btn-icon" onclick="closeUserCampsModal()"><i data-lucide="x" style="width:16px;height:16px;"></i></button>
+        </div>
+        <div class="modal-body no-pad">
+            <div class="modal-camps-scroll">
+                <table class="modal-camps-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Campaign</th>
+                            <th>Query</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                            <th>Leads</th>
+                            <th>Created</th>
+                            <th>Export</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-camps-modal-body">
+                        <tr><td colspan="8" class="empty-state">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-cancel" onclick="closeUserCampsModal()">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- Delete confirmation modal -->
 <div class="modal-overlay" id="del-modal">
     <div class="modal-box">
@@ -604,6 +703,7 @@ const admin = {
     pendingDeleteUsername: '',
     sb: null,
     rtChannel: null,
+    activityChart: null,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -666,9 +766,8 @@ function startRealtime() {
 }
 
 function handleCampaignChange(payload) {
-    // Always refresh stats + whichever view is visible
     refreshStats();
-    if (admin.currentView === 'overview') refreshOverviewTable();
+    if (admin.currentView === 'overview') { refreshOverviewTable(); refreshActivityChart(); }
     if (admin.currentView === 'campaigns') loadCampaigns();
 }
 
@@ -719,7 +818,7 @@ function showView(name) {
 
 // ── Overview ───────────────────────────────────────────────────────
 async function loadOverview() {
-    await Promise.all([refreshStats(), refreshOverviewTable()]);
+    await Promise.all([refreshStats(), refreshOverviewTable(), refreshActivityChart()]);
 }
 
 async function refreshOverviewTable() {
@@ -735,7 +834,12 @@ async function refreshOverviewTable() {
         } else {
             tbody.innerHTML = recent.map(c => `
                 <tr>
-                    <td>${escHtml(c.name)}</td>
+                    <td>
+                        ${escHtml(c.name)}
+                        <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-dim);margin-top:2px;">
+                            @${escHtml(c.username||'—')}
+                        </div>
+                    </td>
                     <td>${statusPill(c.status)}</td>
                     <td><span class="pill pill-dim">${c.lead_count ?? 0}</span></td>
                     <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">${fmtDate(c.created_at)}</td>
@@ -745,6 +849,81 @@ async function refreshOverviewTable() {
         }
         lucide.createIcons();
     } catch(e) { console.error('overview table fetch failed', e); }
+}
+
+// Palette for per-user chart lines
+const USER_COLORS = ['#C8F135','#56b4ff','#ff6b6b','#ffd166','#06d6a0','#a78bfa','#f97316','#22d3ee'];
+
+async function refreshActivityChart() {
+    try {
+        const [campRes, userRes] = await Promise.all([
+            fetch('/api/admin/campaigns').then(r => r.json()),
+            fetch('/api/admin/users').then(r => r.json()),
+        ]);
+        const campaigns = campRes.campaigns || [];
+        const users = (userRes.users || []).filter(u => !u.is_admin);
+
+        // Build date labels for the selected range
+        const days = parseInt(document.getElementById('chart-range').value, 10) || 14;
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const labels = [];
+        for (let i = days - 1; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            labels.push(d.toISOString().slice(0,10));
+        }
+
+        // Per-user daily campaign counts
+        const datasets = users.map((u, idx) => {
+            const color = USER_COLORS[idx % USER_COLORS.length];
+            const counts = labels.map(day =>
+                campaigns.filter(c => c.username === u.username && (c.created_at||'').slice(0,10) === day).length
+            );
+            return { label: u.username, data: counts, borderColor: color, backgroundColor: color + '22',
+                     tension: 0.4, fill: false, pointRadius: 4, pointHoverRadius: 7,
+                     pointBackgroundColor: color, pointBorderColor: color, borderWidth: 2 };
+        });
+
+        // Legend
+        const legend = document.getElementById('graph-legend');
+        legend.innerHTML = users.map((u, idx) => {
+            const color = USER_COLORS[idx % USER_COLORS.length];
+            return `<div class="graph-legend-item"><span class="legend-dot" style="background:${color}"></span>${escHtml(u.username)}</div>`;
+        }).join('');
+
+        const ctx = document.getElementById('activity-chart').getContext('2d');
+        if (admin.activityChart) admin.activityChart.destroy();
+
+        admin.activityChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels.map(d => {
+                const [,m,day] = d.split('-');
+                return `${day}/${m}`;
+            }), datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#1a1a1a', borderColor: '#333', borderWidth: 1,
+                        titleFont: { family: 'DM Mono, monospace', size: 11 },
+                        bodyFont: { family: 'DM Mono, monospace', size: 11 },
+                        titleColor: '#aaa', bodyColor: '#eee', padding: 10,
+                        callbacks: {
+                            title: items => `Date: ${labels[items[0].dataIndex]}`,
+                            label: item => ` ${item.dataset.label}: ${item.raw} campaign${item.raw!==1?'s':''}`,
+                        }
+                    }
+                },
+                scales: {
+                    x: { grid: { color: '#2a2a2a' }, ticks: { color: '#666', font: { family: 'DM Mono, monospace', size: 10 } } },
+                    y: { grid: { color: '#2a2a2a' }, ticks: { color: '#666', font: { family: 'DM Mono, monospace', size: 10 }, stepSize: 1 }, beginAtZero: true }
+                }
+            }
+        });
+    } catch(e) { console.error('activity chart failed', e); }
 }
 
 // ── Users ──────────────────────────────────────────────────────────
@@ -764,7 +943,7 @@ async function loadUsers() {
 function renderUsersTable(users) {
     const tbody = document.getElementById('users-table-body');
     if (!users.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No users found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No users found.</td></tr>';
         return;
     }
     tbody.innerHTML = users.map(u => {
@@ -778,6 +957,11 @@ function renderUsersTable(users) {
             <td>${isAdmin ? '<span class="pill pill-accent">Founder</span>' : '<span class="pill pill-dim">User</span>'}</td>
             <td>${apifyOn ? '<span class="pill pill-green">ON</span>' : '<span class="pill pill-red">OFF</span>'}</td>
             <td style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);">${fmtDate(u.created_at)}</td>
+            <td>
+                <button class="btn-sm accent" onclick="openUserCampsModal(${u.id},'${escAttr(u.username)}')">
+                    <i data-lucide="database"></i> View
+                </button>
+            </td>
             <td>
                 ${isAdmin
                     ? '<span style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim);">Protected</span>'
@@ -830,14 +1014,17 @@ async function loadCampaigns() {
 function renderCampsTable(camps) {
     const tbody = document.getElementById('camps-table-body');
     if (!camps.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No campaigns found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No campaigns found.</td></tr>';
         return;
     }
     tbody.innerHTML = camps.map(c => `
         <tr>
             <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">#${c.id}</td>
-            <td>${escHtml(c.name)}</td>
-            <td style="font-family:var(--font-mono);font-size:0.78rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escAttr(c.search_query)}">${escHtml(c.search_query)}</td>
+            <td>
+                ${escHtml(c.name)}
+                <div style="font-family:var(--font-mono);font-size:0.68rem;color:var(--text-dim);margin-top:2px;">@${escHtml(c.username||'—')}</div>
+            </td>
+            <td style="font-family:var(--font-mono);font-size:0.78rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escAttr(c.search_query)}">${escHtml(c.search_query)}</td>
             <td style="font-family:var(--font-mono);font-size:0.78rem;color:var(--text-dim);">${escHtml(c.location||'—')}</td>
             <td>${statusPill(c.status)}</td>
             <td><span class="pill pill-dim">${c.lead_count??0}</span></td>
@@ -915,6 +1102,51 @@ async function setApifyGlobal(enabled) {
     showToast(res.ok ? `Apify ${enabled?'enabled':'disabled'} for all users` : 'Failed', !res.ok);
 }
 
+// ── User Campaigns Modal ───────────────────────────────────────────
+async function openUserCampsModal(userId, username) {
+    document.getElementById('user-camps-modal-title').textContent = `${username}'s Campaigns`;
+    document.getElementById('user-camps-modal-sub').textContent = 'Loading…';
+    document.getElementById('user-camps-modal-body').innerHTML =
+        '<tr><td colspan="8" class="empty-state">Loading…</td></tr>';
+    document.getElementById('user-camps-modal').classList.add('open');
+    lucide.createIcons();
+
+    try {
+        const res = await fetch(`/api/admin/users/${userId}/campaigns`);
+        if (!res.ok) throw new Error(res.status);
+        const data = await res.json();
+        const camps = data.campaigns || [];
+        document.getElementById('user-camps-modal-sub').textContent =
+            `${camps.length} campaign${camps.length !== 1 ? 's' : ''} · user #${userId}`;
+        const tbody = document.getElementById('user-camps-modal-body');
+        if (!camps.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No campaigns yet for this user.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = camps.map(c => `
+            <tr>
+                <td style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);">#${c.id}</td>
+                <td>${escHtml(c.name)}</td>
+                <td style="font-family:var(--font-mono);font-size:0.75rem;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escAttr(c.search_query)}">${escHtml(c.search_query)}</td>
+                <td style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-dim);">${escHtml(c.location||'—')}</td>
+                <td>${statusPill(c.status)}</td>
+                <td><span class="pill pill-dim">${c.lead_count??0}</span></td>
+                <td style="font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim);">${fmtDate(c.created_at)}</td>
+                <td><button class="btn-sm accent" onclick="exportCampaign(${c.id},'${escAttr(c.name)}')"><i data-lucide="download"></i> CSV</button></td>
+            </tr>
+        `).join('');
+        lucide.createIcons();
+    } catch(e) {
+        document.getElementById('user-camps-modal-body').innerHTML =
+            '<tr><td colspan="8" class="empty-state" style="color:var(--danger);">Failed to load campaigns.</td></tr>';
+        document.getElementById('user-camps-modal-sub').textContent = 'Error';
+    }
+}
+
+function closeUserCampsModal() {
+    document.getElementById('user-camps-modal').classList.remove('open');
+}
+
 // ── Delete modal ───────────────────────────────────────────────────
 function openDelModal(userId, username) {
     admin.pendingDeleteUserId = userId;
@@ -951,6 +1183,9 @@ async function adminLogout() {
 
 document.getElementById('del-modal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeDelModal();
+});
+document.getElementById('user-camps-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeUserCampsModal();
 });
 </script>
 </body>
