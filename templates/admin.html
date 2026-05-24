@@ -639,9 +639,15 @@ function setRtStatus(connected) {
 document.addEventListener('DOMContentLoaded', async () => {
     lucide.createIcons();
     // Bootstrap Supabase client from /api/config then start realtime
-    const cfg = await fetch('/api/config').then(r => r.json());
-    admin.sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key);
-    startRealtime();
+    try {
+        const cfg = await fetch('/api/config').then(r => r.json());
+        admin.sb = supabase.createClient(cfg.supabase_url, cfg.supabase_key);
+        startRealtime();
+    } catch(e) {
+        console.error('Supabase init failed', e);
+        setRtStatus(false);
+    }
+    // Load initial data regardless of realtime status
     loadOverview();
 });
 

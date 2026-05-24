@@ -57,12 +57,13 @@ def set_apify_enabled_user(user_id, enabled: bool):
 
 def get_all_campaigns_with_user():
     res = _supabase.table('campaigns').select(
-        '*, leads(count), user:users(id, username, email)'
+        '*, leads(count), lead_statuses:leads(call_status)'
     ).order('created_at', desc=True).execute()
     rows = res.data
     for row in rows:
         count_list = row.pop('leads', [])
         row['lead_count'] = count_list[0]['count'] if count_list else 0
+        row.pop('lead_statuses', None)
     return rows
 
 
