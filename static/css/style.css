@@ -1077,6 +1077,95 @@ textarea::placeholder {
     font-weight: 700;
 }
 
+/* Edit-questions toolbar + rows */
+.notes-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.75rem;
+}
+.notes-edit-toggle {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.notes-edit-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.notes-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+.notes-edit-num {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+}
+.notes-edit-input {
+    flex: 1;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-light);
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    padding: 0.5rem 0.7rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.notes-edit-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(200,241,53,0.12);
+}
+.notes-edit-del {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-dim);
+    width: 30px;
+    height: 30px;
+    border-radius: 7px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+}
+.notes-edit-del:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+.notes-add-question {
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--border-color);
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    padding: 0.55rem;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 0.3rem;
+    transition: all 0.15s;
+}
+.notes-add-question:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.notes-empty {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 1rem 0;
+}
+
 /* Compact boxes for the 3 required questions (override the tall default below) */
 .notes-modal-textarea.notes-q-input {
     min-height: 48px;
@@ -1137,6 +1226,10 @@ textarea::placeholder {
     display: flex;
     gap: 0.6rem;
     flex-shrink: 0;
+}
+
+.notes-modal-actions.hidden {
+    display: none;
 }
 
 .notes-btn-cancel {

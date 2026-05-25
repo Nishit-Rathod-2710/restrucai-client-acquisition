@@ -55,3 +55,13 @@ CREATE TABLE IF NOT EXISTS leads (
 -- If you already created the leads table earlier, run these to add the new columns:
 -- ALTER TABLE leads ADD COLUMN IF NOT EXISTS call_status TEXT DEFAULT 'Need to Call';
 -- ALTER TABLE leads ADD COLUMN IF NOT EXISTS notes TEXT;
+
+-- Per-user, editable Notes questions (the "Inform Team" questionnaire).
+CREATE TABLE IF NOT EXISTS note_questions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL DEFAULT 0,
+    text TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_note_questions_user ON note_questions(user_id, position);

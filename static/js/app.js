@@ -44,6 +44,7 @@ const app = {
         } catch (e) {
             console.warn('Config load failed, using defaults', e);
         }
+        await this._ensureNoteQuestions();   // needed so note-cell previews render
         await this.fetchCampaigns();
     },
 
@@ -591,46 +592,77 @@ const app = {
 
     // ── Notes cell ────────────────────────────────────────────────────────────
 
-    // Structured notes: 3 required questions + free notes, serialized into the
-    // single `notes` text field with `### ` headings so it round-trips cleanly.
-    NOTES_HEADINGS: {
-        q1: 'Q1: Leads/month & conversion %',
-        q2: 'Q2: Time/cost per lead',
-        q3: 'Q3: Team size & vision',
-        free: 'Additional Notes',
+    // Per-user editable questions live in this.state.noteQuestions ([{id, text}]).
+    // A lead's answers are stored in `leads.notes` as JSON keyed by question id:
+    //   {"v":2,"answers":{"<id>":"...", "free":"..."}}
+    // Legacy notes (plain text or the old "### Heading" format) are mapped on read.
+
+    _esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     },
 
-    _serializeNotes(q1, q2, q3, free) {
-        const h = this.NOTES_HEADINGS;
-        let out = `### ${h.q1}\n${q1}\n\n### ${h.q2}\n${q2}\n\n### ${h.q3}\n${q3}`;
-        if (free) out += `\n\n### ${h.free}\n${free}`;
+    async _ensureNoteQuestions() {
+        if (this.state.noteQuestions) return this.state.noteQuestions;
+        try {
+            const res = await fetch('/api/note-questions');
+            const data = await res.json();
+            this.state.noteQuestions = (data.questions || []).map(q => ({ id: q.id, text: q.text }));
+        } catch (e) {
+            console.error('Failed to load note questions', e);
+            this.state.noteQuestions = [];
+        }
+        return this.state.noteQuestions;
+    },
+
+    // Returns { answers: {id|"free": value}, legacy: [v1,v2,v3] }.
+    _parseNotes(text) {
+        const out = { answers: {}, free: '', legacy: [] };
+        if (!text) return out;
+        const t = text.trim();
+        if (t.startsWith('{')) {
+            try {
+                const obj = JSON.parse(t);
+                const a = obj.answers || {};
+                out.free = a.free || '';
+                for (const k of Object.keys(a)) if (k !== 'free') out.answers[k] = a[k];
+                return out;
+            } catch (e) { /* fall through to legacy */ }
+        }
+        // Legacy "### Heading\nbody" format → positional answers + free notes.
+        if (t.includes('### ')) {
+            for (const part of t.split(/\n?### /)) {
+                if (!part.trim()) continue;
+                const nl = part.indexOf('\n');
+                const heading = (nl === -1 ? part : part.slice(0, nl)).trim();
+                const body = (nl === -1 ? '' : part.slice(nl + 1)).trim();
+                if (heading.startsWith('Additional')) out.free = body;
+                else out.legacy.push(body);
+            }
+        } else {
+            out.free = t; // very old plain-text note
+        }
         return out;
     },
 
-    _parseNotes(text) {
-        const res = { q1: '', q2: '', q3: '', free: '' };
-        if (!text) return res;
-        for (const part of text.split(/\n?### /)) {
-            if (!part.trim()) continue;
-            const nl = part.indexOf('\n');
-            const heading = (nl === -1 ? part : part.slice(0, nl)).trim();
-            const body = (nl === -1 ? '' : part.slice(nl + 1)).trim();
-            if (heading.startsWith('Q1')) res.q1 = body;
-            else if (heading.startsWith('Q2')) res.q2 = body;
-            else if (heading.startsWith('Q3')) res.q3 = body;
-            else if (heading.startsWith('Additional')) res.free = body;
-            else if (!res.q1 && !res.free) res.free = (heading + (body ? '\n' + body : '')); // legacy plain note
-        }
-        return res;
+    // Map a parsed note onto the current question list → { id: answer, free }.
+    _answersForLead(notesText) {
+        const parsed = this._parseNotes(notesText);
+        const qs = this.state.noteQuestions || [];
+        const map = { free: parsed.free };
+        qs.forEach((q, i) => {
+            map[q.id] = (q.id in parsed.answers) ? parsed.answers[q.id]
+                      : (parsed.legacy[i] || '');
+        });
+        return map;
     },
 
-    _notesPreview(text) {
-        const p = this._parseNotes(text);
+    _notesPreview(notesText) {
+        const map = this._answersForLead(notesText);
+        const qs = this.state.noteQuestions || [];
         const lines = [];
-        if (p.q1) lines.push('Leads/conv: ' + p.q1);
-        if (p.q2) lines.push('Cost/lead: ' + p.q2);
-        if (p.q3) lines.push('Team: ' + p.q3);
-        if (p.free) lines.push(p.free);
+        qs.forEach(q => { if (map[q.id]) lines.push(q.text.replace(/\?.*$/, '?').slice(0, 24) + ': ' + map[q.id]); });
+        if (map.free) lines.push(map.free);
         return lines.join(' · ');
     },
 
@@ -638,38 +670,151 @@ const app = {
         const cell = document.getElementById(`notes-cell-${leadId}`);
         if (!cell) return;
         if (notes) {
-            const preview = this._notesPreview(notes);
-            const safeHtml = preview.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            const safeHtml = this._esc(this._notesPreview(notes));
             cell.innerHTML = `<div class="notes-display" onclick="event.stopPropagation(); app.openNotesModal(${leadId})" title="Click to edit">${safeHtml}</div>`;
         } else {
             cell.innerHTML = `<button class="notes-add-btn" onclick="event.stopPropagation(); app.openNotesModal(${leadId})">+ Note</button>`;
         }
     },
 
-    openNotesModal(leadId) {
+    async openNotesModal(leadId) {
         const lead = this.state.activeCampaignData?.leads?.find(l => l.id === leadId);
         if (!lead) return;
         this._notesModalLeadId = leadId;
+        this._notesEditMode = false;
 
+        await this._ensureNoteQuestions();
         document.getElementById('notes-modal-lead-name').textContent = lead.name || 'Note';
-        const parsed = this._parseNotes(lead.notes || '');
-        const q1 = document.getElementById('notes-q1');
-        const q2 = document.getElementById('notes-q2');
-        const q3 = document.getElementById('notes-q3');
-        const free = document.getElementById('notes-modal-textarea');
-        q1.value = parsed.q1;
-        q2.value = parsed.q2;
-        q3.value = parsed.q3;
-        free.value = parsed.free;
+
+        // Working answer map preserved across edit-mode toggles.
+        this._notesAnswers = this._answersForLead(lead.notes || '');
+        document.getElementById('notes-modal-textarea').value = this._notesAnswers.free || '';
+        this._renderNotesView();
 
         document.getElementById('notes-modal-overlay').classList.add('open');
-        setTimeout(() => q1.focus(), 80);
+        setTimeout(() => {
+            const first = document.querySelector('#notes-questions-container textarea, #notes-questions-container input');
+            if (first) first.focus();
+        }, 80);
 
         this._notesKeyHandler = (e) => {
             if (e.key === 'Escape') { e.preventDefault(); this.closeNotesModal(); }
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.saveNotesModal(); }
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !this._notesEditMode) {
+                e.preventDefault(); this.saveNotesModal();
+            }
         };
         document.querySelector('.notes-modal').addEventListener('keydown', this._notesKeyHandler);
+    },
+
+    // Render the answer view (one textarea per question).
+    _renderNotesView() {
+        const qs = this.state.noteQuestions || [];
+        const c = document.getElementById('notes-questions-container');
+        c.innerHTML = qs.map((q, i) => `
+            <div class="notes-question">
+                <label class="notes-q-label">${i + 1}. ${this._esc(q.text)} <span class="notes-req">*</span></label>
+                <textarea class="notes-modal-textarea notes-q-input" data-qid="${q.id}" rows="2"
+                          placeholder="Your answer...">${this._esc(this._notesAnswers[q.id] || '')}</textarea>
+            </div>`).join('') || '<p class="notes-empty">No questions yet. Click “Edit questions” to add one.</p>';
+        document.getElementById('notes-free-block').style.display = '';
+        document.getElementById('notes-edit-toggle').textContent = '✎ Edit questions';
+        document.getElementById('notes-actions-answer').classList.remove('hidden');
+        document.getElementById('notes-actions-edit').classList.add('hidden');
+        document.getElementById('notes-modal-hint').textContent = 'All questions required · Esc to cancel';
+    },
+
+    // Render the edit view (rename / add / remove questions).
+    _renderNotesEdit() {
+        const c = document.getElementById('notes-questions-container');
+        c.innerHTML = this._questionsDraft.map((q, i) => `
+            <div class="notes-edit-row">
+                <span class="notes-edit-num">${i + 1}.</span>
+                <input class="notes-edit-input" data-idx="${i}" value="${this._esc(q.text)}" placeholder="Question text...">
+                <button class="notes-edit-del" onclick="app.removeNotesQuestion(${i})" title="Remove">✕</button>
+            </div>`).join('') +
+            `<button class="notes-add-question" onclick="app.addNotesQuestion()">+ Add question</button>`;
+        document.getElementById('notes-free-block').style.display = 'none';
+        document.getElementById('notes-edit-toggle').textContent = '← Back to answers';
+        document.getElementById('notes-actions-answer').classList.add('hidden');
+        document.getElementById('notes-actions-edit').classList.remove('hidden');
+        document.getElementById('notes-modal-hint').textContent = 'Rename, add, or remove questions';
+    },
+
+    _syncAnswersFromDom() {
+        document.querySelectorAll('#notes-questions-container textarea[data-qid]').forEach(ta => {
+            this._notesAnswers[ta.dataset.qid] = ta.value;
+        });
+        this._notesAnswers.free = document.getElementById('notes-modal-textarea').value;
+    },
+
+    _syncDraftFromDom() {
+        document.querySelectorAll('#notes-questions-container input[data-idx]').forEach(inp => {
+            const i = +inp.dataset.idx;
+            if (this._questionsDraft[i]) this._questionsDraft[i].text = inp.value;
+        });
+    },
+
+    toggleNotesEdit() {
+        if (!this._notesEditMode) {
+            this._syncAnswersFromDom();
+            this._questionsDraft = (this.state.noteQuestions || []).map(q => ({ id: q.id, text: q.text }));
+            this._notesEditMode = true;
+            this._renderNotesEdit();
+        } else {
+            this.cancelNotesEdit();
+        }
+    },
+
+    cancelNotesEdit() {
+        this._notesEditMode = false;
+        this._renderNotesView();
+    },
+
+    addNotesQuestion() {
+        this._syncDraftFromDom();
+        this._questionsDraft.push({ id: null, text: '' });
+        this._renderNotesEdit();
+        const inputs = document.querySelectorAll('#notes-questions-container input[data-idx]');
+        if (inputs.length) inputs[inputs.length - 1].focus();
+    },
+
+    removeNotesQuestion(idx) {
+        this._syncDraftFromDom();
+        this._questionsDraft.splice(idx, 1);
+        this._renderNotesEdit();
+    },
+
+    async saveNotesQuestions() {
+        this._syncDraftFromDom();
+        const texts = this._questionsDraft.map(q => q.text.trim()).filter(Boolean);
+        if (!texts.length) { alert('Add at least one question.'); return; }
+        const btn = document.querySelector('#notes-actions-edit .notes-btn-save');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        try {
+            const res = await fetch('/api/note-questions', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ questions: texts }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                // Remap existing answers onto new question ids by position.
+                const oldAnswers = this.state.noteQuestions.map(q => this._notesAnswers[q.id] || '');
+                this.state.noteQuestions = data.questions.map(q => ({ id: q.id, text: q.text }));
+                const newAnswers = { free: this._notesAnswers.free || '' };
+                this.state.noteQuestions.forEach((q, i) => { newAnswers[q.id] = oldAnswers[i] || ''; });
+                this._notesAnswers = newAnswers;
+                this._notesEditMode = false;
+                this._renderNotesView();
+            } else {
+                alert('Could not save questions: ' + (data.error || `HTTP ${res.status}`));
+            }
+        } catch (e) {
+            console.error('Failed to save questions', e);
+            alert('Could not reach the server to save questions.');
+        } finally {
+            btn.disabled = false; btn.textContent = 'Save Questions';
+        }
     },
 
     closeNotesModal() {
@@ -680,27 +825,37 @@ const app = {
             this._notesKeyHandler = null;
         }
         this._notesModalLeadId = null;
+        this._notesEditMode = false;
     },
 
+    // Returns { items: [{id, question, answer}], free, allAnswered }.
     _collectNotesAnswers() {
+        this._syncAnswersFromDom();
+        const qs = this.state.noteQuestions || [];
+        const items = qs.map(q => ({ id: q.id, question: q.text, answer: (this._notesAnswers[q.id] || '').trim() }));
         return {
-            q1: document.getElementById('notes-q1').value.trim(),
-            q2: document.getElementById('notes-q2').value.trim(),
-            q3: document.getElementById('notes-q3').value.trim(),
-            free: document.getElementById('notes-modal-textarea').value.trim(),
+            items,
+            free: (this._notesAnswers.free || '').trim(),
+            allAnswered: items.length > 0 && items.every(it => it.answer),
         };
+    },
+
+    _serializeAnswers(collected) {
+        const answers = { free: collected.free };
+        collected.items.forEach(it => { answers[it.id] = it.answer; });
+        return JSON.stringify({ v: 2, answers });
     },
 
     async saveNotesModal() {
         const leadId = this._notesModalLeadId;
         if (!leadId) return;
-        const a = this._collectNotesAnswers();
-        if (!a.q1 || !a.q2 || !a.q3) {
-            alert('Please answer all 3 required questions before saving.');
+        const c = this._collectNotesAnswers();
+        if (!c.allAnswered) {
+            alert('Please answer all questions before saving.');
             return;
         }
-        const notes = this._serializeNotes(a.q1, a.q2, a.q3, a.free);
-        const btn = document.querySelector('.notes-btn-save');
+        const notes = this._serializeAnswers(c);
+        const btn = document.querySelector('#notes-actions-answer .notes-btn-save');
         btn.disabled = true;
         btn.textContent = 'Saving...';
         try {
@@ -726,13 +881,13 @@ const app = {
         }
     },
 
-    // Sends the lead briefing (3 answers + notes) to the team's Telegram chat.
+    // Sends the lead briefing (all answers + notes) to the team's Telegram chat.
     async informTeam() {
         const leadId = this._notesModalLeadId;
         if (!leadId) return;
-        const a = this._collectNotesAnswers();
-        if (!a.q1 || !a.q2 || !a.q3) {
-            alert('Please answer all 3 required questions before informing the team.');
+        const c = this._collectNotesAnswers();
+        if (!c.allAnswered) {
+            alert('Please answer all questions before informing the team.');
             return;
         }
         const btn = document.querySelector('.notes-btn-telegram');
@@ -743,7 +898,10 @@ const app = {
             const res = await fetch(`/api/leads/${leadId}/inform-team`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(a),
+                body: JSON.stringify({
+                    items: c.items.map(it => ({ question: it.question, answer: it.answer })),
+                    free: c.free,
+                }),
             });
             const data = await res.json();
             if (res.ok && data.success) {

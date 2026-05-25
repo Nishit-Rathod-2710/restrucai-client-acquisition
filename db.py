@@ -188,6 +188,48 @@ def update_lead_notes(lead_id, notes):
     _supabase.table('leads').update({'notes': notes}).eq('id', lead_id).execute()
 
 
+# --- Note questions (per-user, editable Inform-Team questionnaire) ---
+
+DEFAULT_NOTE_QUESTIONS = [
+    'How many leads are you generating per month, and what percentage actually convert?',
+    'What does your current process look like after a new lead comes in?',
+    'Your current team size and the vision to expand it?',
+]
+
+
+def get_note_questions(user_id):
+    """Returns the user's questions ordered by position, seeding defaults on first use."""
+    res = (_supabase.table('note_questions')
+           .select('*')
+           .eq('user_id', user_id)
+           .order('position', desc=False)
+           .execute())
+    if res.data:
+        return res.data
+    return seed_default_note_questions(user_id)
+
+
+def seed_default_note_questions(user_id):
+    rows = [{'user_id': user_id, 'position': i, 'text': t}
+            for i, t in enumerate(DEFAULT_NOTE_QUESTIONS)]
+    res = _supabase.table('note_questions').insert(rows).execute()
+    return sorted(res.data, key=lambda r: r['position'])
+
+
+def replace_note_questions(user_id, texts):
+    """
+    Replaces the user's whole question set with the given ordered list of texts.
+    Returns the new rows (with fresh ids) ordered by position.
+    """
+    _supabase.table('note_questions').delete().eq('user_id', user_id).execute()
+    rows = [{'user_id': user_id, 'position': i, 'text': t.strip()}
+            for i, t in enumerate(texts) if t and t.strip()]
+    if not rows:
+        return []
+    res = _supabase.table('note_questions').insert(rows).execute()
+    return sorted(res.data, key=lambda r: r['position'])
+
+
 if __name__ == '__main__':
     init_db()
     print("Supabase connection verified.")

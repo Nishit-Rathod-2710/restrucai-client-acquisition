@@ -501,6 +501,26 @@ def update_lead_notes(lead_id):
     return jsonify({'success': True, 'notes': notes})
 
 
+@app.route('/api/note-questions', methods=['GET'])
+@login_required
+def get_note_questions():
+    questions = db.get_note_questions(session['user_id'])
+    return jsonify({'questions': questions})
+
+
+@app.route('/api/note-questions', methods=['PUT'])
+@login_required
+def update_note_questions():
+    texts = (request.json or {}).get('questions', [])
+    if not isinstance(texts, list):
+        return jsonify({'error': 'questions must be a list of strings'}), 400
+    texts = [str(t).strip() for t in texts if str(t).strip()]
+    if not texts:
+        return jsonify({'error': 'At least one question is required.'}), 400
+    questions = db.replace_note_questions(session['user_id'], texts)
+    return jsonify({'success': True, 'questions': questions})
+
+
 @app.route('/api/leads/<int:lead_id>/inform-team', methods=['POST'])
 @login_required
 def inform_team(lead_id):
@@ -509,12 +529,12 @@ def inform_team(lead_id):
         return jsonify({'error': 'Not found'}), 404
 
     body = request.json or {}
-    q1 = (body.get('q1') or '').strip()
-    q2 = (body.get('q2') or '').strip()
-    q3 = (body.get('q3') or '').strip()
+    items = body.get('items', [])   # [{question, answer}, ...]
     free = (body.get('free') or '').strip()
-    if not q1 or not q2 or not q3:
-        return jsonify({'error': 'All 3 questions must be answered before informing the team.'}), 400
+    if not isinstance(items, list) or not items:
+        return jsonify({'error': 'No questions to send.'}), 400
+    if any(not (it.get('answer') or '').strip() for it in items):
+        return jsonify({'error': 'All questions must be answered before informing the team.'}), 400
 
     def esc(s):
         # Escape the few characters Telegram's HTML parse_mode treats specially.
@@ -530,25 +550,19 @@ def inform_team(lead_id):
     if lead.get('website'):
         lines.append(f"🌐 {esc(lead['website'])}")
     lines.append(f"📍 Status: {esc(lead.get('call_status') or 'Need to Call')}")
-    lines += [
-        '',
-        '<b>1. Leads/month &amp; conversion %</b>',
-        esc(q1),
-        '',
-        '<b>2. Time/cost per lead</b>',
-        esc(q2),
-        '',
-        '<b>3. Team size &amp; vision</b>',
-        esc(q3),
-    ]
+    lines.append('')
+    for i, it in enumerate(items, 1):
+        lines.append(f"<b>{i}. {esc(it.get('question'))}</b>")
+        lines.append(esc(it.get('answer')))
+        lines.append('')
     if free:
-        lines += ['', '<b>Additional notes</b>', esc(free)]
+        lines += ['<b>Additional notes</b>', esc(free), '']
 
     sent_by = session.get('username') or session.get('user_id')
     if sent_by:
-        lines += ['', f"<i>Sent by {esc(sent_by)}</i>"]
+        lines.append(f"<i>Sent by {esc(sent_by)}</i>")
 
-    ok, err = send_telegram_message('\n'.join(lines))
+    ok, err = send_telegram_message('\n'.join(lines).strip())
     if not ok:
         return jsonify({'error': err}), 502
     return jsonify({'success': True, 'message': 'Team notified on Telegram.'})
