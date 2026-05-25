@@ -199,7 +199,7 @@ const app = {
                 this.startPolling();
             } else {
                 toast.classList.add('hidden');
-                alert(data.error || 'Failed to start query');
+                UI.toast(data.error || 'Failed to start query', 'error');
             }
         } catch (err) {
             console.error('Failed to run search', err);
@@ -226,7 +226,12 @@ const app = {
 
     async deleteCampaign() {
         if (!this.state.activeCampaignId) return;
-        if (!confirm('Are you sure you want to purge this dataset?')) return;
+        const ok = await UI.confirm({
+            title: 'Purge dataset?',
+            message: 'This permanently deletes this campaign and all its leads. This cannot be undone.',
+            confirmText: 'Purge', cancelText: 'Cancel', danger: true,
+        });
+        if (!ok) return;
         try {
             await fetch(`/api/campaigns/${this.state.activeCampaignId}`, { method: 'DELETE' });
             this.state.activeCampaignId = null;
@@ -258,14 +263,14 @@ const app = {
             const data = await res.json();
 
             if (res.status === 409) {
-                alert('Enrichment already running for this campaign.');
+                UI.toast('Enrichment already running for this campaign.', 'info');
                 btn.disabled = false;
                 btn.innerHTML = '<i data-lucide="zap"></i> FIND EMAILS';
                 lucide.createIcons();
                 return;
             }
             if (data.total === 0) {
-                alert(data.message || 'No leads need enrichment.');
+                UI.toast(data.message || 'No leads need enrichment.', 'info');
                 btn.disabled = false;
                 btn.innerHTML = '<i data-lucide="zap"></i> FIND EMAILS';
                 lucide.createIcons();
@@ -795,7 +800,7 @@ const app = {
         this._syncAnswersFromDom();
         const inp = document.getElementById('notes-inline-input');
         const text = (inp ? inp.value : '').trim();
-        if (!text) { alert('Question text cannot be empty.'); return; }
+        if (!text) { UI.toast('Question text cannot be empty.', 'error'); return; }
         const q = this.state.noteQuestions.find(x => x.id === this._editingQid);
         if (q) q.text = text;
         this._persistQuestions();
@@ -805,14 +810,19 @@ const app = {
         this._syncAnswersFromDom();
         this.state.noteQuestions = this.state.noteQuestions.filter(q => q.id !== this._editingQid);
         if (!this.state.noteQuestions.length) {
-            alert('You must keep at least one question.');
+            UI.toast('You must keep at least one question.', 'error');
             return this.cancelInlineQuestion();
         }
         this._persistQuestions();
     },
 
-    resetNoteQuestions() {
-        if (!confirm('Reset to the 3 default questions? Your current questions will be replaced.')) return;
+    async resetNoteQuestions() {
+        const ok = await UI.confirm({
+            title: 'Reset questions?',
+            message: 'Your current questions will be replaced with the 3 default questions.',
+            confirmText: 'Reset', cancelText: 'Cancel',
+        });
+        if (!ok) return;
         this._syncAnswersFromDom();
         const oldAnswers = (this.state.noteQuestions || []).map(q => this._notesAnswers[q.id] || '');
         this._editingQid = null;
@@ -828,7 +838,7 @@ const app = {
         const desired = desiredArg || this.state.noteQuestions
             .map(q => ({ text: (q.text || '').trim(), answer: this._notesAnswers[q.id] || '' }))
             .filter(d => d.text);
-        if (!desired.length) { alert('Add at least one question.'); return; }
+        if (!desired.length) { UI.toast('Add at least one question.', 'error'); return; }
         const btn = document.querySelector('#notes-inline-input')?.parentNode.querySelector('.save');
         if (btn) { btn.disabled = true; btn.textContent = '…'; }
         try {
@@ -846,12 +856,12 @@ const app = {
                 this._editingQid = null;
                 this._renderNotesView();
             } else {
-                alert('Could not save question: ' + (data.error || `HTTP ${res.status}`));
+                UI.toast('Could not save question: ' + (data.error || `HTTP ${res.status}`), 'error');
                 if (btn) { btn.disabled = false; btn.textContent = '✓'; }
             }
         } catch (e) {
             console.error('Failed to save question', e);
-            alert('Could not reach the server to save the question.');
+            UI.toast('Could not reach the server to save the question.', 'error');
             if (btn) { btn.disabled = false; btn.textContent = '✓'; }
         }
     },
@@ -890,7 +900,7 @@ const app = {
         if (!leadId) return;
         const c = this._collectNotesAnswers();
         if (!c.allAnswered) {
-            alert('Please answer all questions before saving.');
+            UI.toast('Please answer all questions before saving.', 'info');
             return;
         }
         const notes = this._serializeAnswers(c);
@@ -926,7 +936,7 @@ const app = {
         if (!leadId) return;
         const c = this._collectNotesAnswers();
         if (!c.allAnswered) {
-            alert('Please answer all questions before informing the team.');
+            UI.toast('Please answer all questions before informing the team.', 'info');
             return;
         }
         const btn = document.querySelector('.notes-btn-telegram');
@@ -944,13 +954,13 @@ const app = {
             });
             const data = await res.json();
             if (res.ok && data.success) {
-                alert(data.message || 'Team notified on Telegram.');
+                UI.toast(data.message || 'Team notified on Telegram.', 'success');
             } else {
-                alert('Could not inform team: ' + (data.error || `HTTP ${res.status}`));
+                UI.toast('Could not inform team: ' + (data.error || `HTTP ${res.status}`), 'error');
             }
         } catch (e) {
             console.error('Inform team failed', e);
-            alert('Could not reach the server to inform the team.');
+            UI.toast('Could not reach the server to inform the team.', 'error');
         } finally {
             btn.disabled = false;
             btn.innerHTML = original;

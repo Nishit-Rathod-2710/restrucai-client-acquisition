@@ -694,6 +694,7 @@
 <!-- Toast -->
 <div id="admin-toast"></div>
 
+<script src="/static/js/ui.js"></script>
 <script>
 // ── State ──────────────────────────────────────────────────────────
 const admin = {
@@ -724,11 +725,7 @@ function statusPill(s) {
     return `<span class="pill ${map[s]||'pill-dim'}">${escHtml(s)}</span>`;
 }
 function showToast(msg, isError=false) {
-    const el = document.getElementById('admin-toast');
-    el.textContent = msg;
-    el.className = 'visible' + (isError ? ' error' : '');
-    clearTimeout(el._t);
-    el._t = setTimeout(() => { el.className = ''; }, 3200);
+    UI.toast(msg, isError ? 'error' : 'success');
 }
 function setRtStatus(connected) {
     const dot = document.getElementById('rt-dot');
@@ -1117,7 +1114,12 @@ async function toggleUserApifyFromApifyTab(userId, enabled) {
 }
 
 async function setApifyGlobal(enabled) {
-    if (!confirm(`${enabled?'Enable':'Disable'} Apify for ALL users?`)) return;
+    const ok = await UI.confirm({
+        title: `${enabled?'Enable':'Disable'} Apify globally?`,
+        message: `This will ${enabled?'enable':'disable'} Apify for ALL users.`,
+        confirmText: enabled?'Enable':'Disable', cancelText: 'Cancel', danger: !enabled,
+    });
+    if (!ok) return;
     const res = await fetch('/api/admin/apify/global', {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({enabled}),
