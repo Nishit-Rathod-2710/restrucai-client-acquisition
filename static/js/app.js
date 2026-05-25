@@ -591,11 +591,55 @@ const app = {
 
     // ── Notes cell ────────────────────────────────────────────────────────────
 
+    // Structured notes: 3 required questions + free notes, serialized into the
+    // single `notes` text field with `### ` headings so it round-trips cleanly.
+    NOTES_HEADINGS: {
+        q1: 'Q1: Leads/month & conversion %',
+        q2: 'Q2: Time/cost per lead',
+        q3: 'Q3: Team size & vision',
+        free: 'Additional Notes',
+    },
+
+    _serializeNotes(q1, q2, q3, free) {
+        const h = this.NOTES_HEADINGS;
+        let out = `### ${h.q1}\n${q1}\n\n### ${h.q2}\n${q2}\n\n### ${h.q3}\n${q3}`;
+        if (free) out += `\n\n### ${h.free}\n${free}`;
+        return out;
+    },
+
+    _parseNotes(text) {
+        const res = { q1: '', q2: '', q3: '', free: '' };
+        if (!text) return res;
+        for (const part of text.split(/\n?### /)) {
+            if (!part.trim()) continue;
+            const nl = part.indexOf('\n');
+            const heading = (nl === -1 ? part : part.slice(0, nl)).trim();
+            const body = (nl === -1 ? '' : part.slice(nl + 1)).trim();
+            if (heading.startsWith('Q1')) res.q1 = body;
+            else if (heading.startsWith('Q2')) res.q2 = body;
+            else if (heading.startsWith('Q3')) res.q3 = body;
+            else if (heading.startsWith('Additional')) res.free = body;
+            else if (!res.q1 && !res.free) res.free = (heading + (body ? '\n' + body : '')); // legacy plain note
+        }
+        return res;
+    },
+
+    _notesPreview(text) {
+        const p = this._parseNotes(text);
+        const lines = [];
+        if (p.q1) lines.push('Leads/conv: ' + p.q1);
+        if (p.q2) lines.push('Cost/lead: ' + p.q2);
+        if (p.q3) lines.push('Team: ' + p.q3);
+        if (p.free) lines.push(p.free);
+        return lines.join(' · ');
+    },
+
     renderNotesCell(leadId, notes) {
         const cell = document.getElementById(`notes-cell-${leadId}`);
         if (!cell) return;
         if (notes) {
-            const safeHtml = notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            const preview = this._notesPreview(notes);
+            const safeHtml = preview.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
             cell.innerHTML = `<div class="notes-display" onclick="event.stopPropagation(); app.openNotesModal(${leadId})" title="Click to edit">${safeHtml}</div>`;
         } else {
             cell.innerHTML = `<button class="notes-add-btn" onclick="event.stopPropagation(); app.openNotesModal(${leadId})">+ Note</button>`;
@@ -608,37 +652,54 @@ const app = {
         this._notesModalLeadId = leadId;
 
         document.getElementById('notes-modal-lead-name').textContent = lead.name || 'Note';
-        const ta = document.getElementById('notes-modal-textarea');
-        ta.value = lead.notes || '';
+        const parsed = this._parseNotes(lead.notes || '');
+        const q1 = document.getElementById('notes-q1');
+        const q2 = document.getElementById('notes-q2');
+        const q3 = document.getElementById('notes-q3');
+        const free = document.getElementById('notes-modal-textarea');
+        q1.value = parsed.q1;
+        q2.value = parsed.q2;
+        q3.value = parsed.q3;
+        free.value = parsed.free;
+
         document.getElementById('notes-modal-overlay').classList.add('open');
+        setTimeout(() => q1.focus(), 80);
 
-        setTimeout(() => {
-            ta.focus();
-            ta.setSelectionRange(ta.value.length, ta.value.length);
-        }, 80);
-
-        ta._notesKeyHandler = (e) => {
+        this._notesKeyHandler = (e) => {
             if (e.key === 'Escape') { e.preventDefault(); this.closeNotesModal(); }
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); this.saveNotesModal(); }
         };
-        ta.addEventListener('keydown', ta._notesKeyHandler);
+        document.querySelector('.notes-modal').addEventListener('keydown', this._notesKeyHandler);
     },
 
     closeNotesModal() {
-        const ta = document.getElementById('notes-modal-textarea');
         document.getElementById('notes-modal-overlay').classList.remove('open');
-        if (ta._notesKeyHandler) {
-            ta.removeEventListener('keydown', ta._notesKeyHandler);
-            delete ta._notesKeyHandler;
+        const modal = document.querySelector('.notes-modal');
+        if (this._notesKeyHandler && modal) {
+            modal.removeEventListener('keydown', this._notesKeyHandler);
+            this._notesKeyHandler = null;
         }
         this._notesModalLeadId = null;
+    },
+
+    _collectNotesAnswers() {
+        return {
+            q1: document.getElementById('notes-q1').value.trim(),
+            q2: document.getElementById('notes-q2').value.trim(),
+            q3: document.getElementById('notes-q3').value.trim(),
+            free: document.getElementById('notes-modal-textarea').value.trim(),
+        };
     },
 
     async saveNotesModal() {
         const leadId = this._notesModalLeadId;
         if (!leadId) return;
-        const ta  = document.getElementById('notes-modal-textarea');
-        const notes = ta.value.trim();
+        const a = this._collectNotesAnswers();
+        if (!a.q1 || !a.q2 || !a.q3) {
+            alert('Please answer all 3 required questions before saving.');
+            return;
+        }
+        const notes = this._serializeNotes(a.q1, a.q2, a.q3, a.free);
         const btn = document.querySelector('.notes-btn-save');
         btn.disabled = true;
         btn.textContent = 'Saving...';
@@ -663,6 +724,21 @@ const app = {
             btn.disabled = false;
             btn.textContent = 'Save Note';
         }
+    },
+
+    // Placeholder — Telegram integration to be wired up later.
+    informTeam() {
+        const a = this._collectNotesAnswers();
+        if (!a.q1 || !a.q2 || !a.q3) {
+            alert('Please answer all 3 required questions before informing the team.');
+            return;
+        }
+        // TODO: POST these answers to the Telegram bot endpoint once configured.
+        console.log('[Inform Team] payload (Telegram integration pending):', {
+            leadId: this._notesModalLeadId,
+            ...a,
+        });
+        alert('Telegram "Inform Team" is set up in the UI — backend integration coming soon.');
     },
 
     // ── Lead detail drawer ────────────────────────────────────────────────────

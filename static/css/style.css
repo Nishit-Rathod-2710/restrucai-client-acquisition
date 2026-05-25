@@ -1036,6 +1036,34 @@ textarea::placeholder {
 
 .notes-modal-body {
     padding: 1.2rem 1.4rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.notes-question {
+    margin-bottom: 1rem;
+}
+.notes-question:last-child {
+    margin-bottom: 0;
+}
+
+.notes-q-label {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 0.4rem;
+    line-height: 1.4;
+}
+
+.notes-req {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.notes-q-input {
+    min-height: 52px;
 }
 
 .notes-modal-textarea {
@@ -1124,6 +1152,28 @@ textarea::placeholder {
 .notes-btn-save:disabled {
     opacity: 0.55;
     cursor: not-allowed;
+}
+
+.notes-btn-telegram {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #229ED9;
+    border: none;
+    color: #fff;
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-right: auto;
+    transition: all 0.15s;
+}
+
+.notes-btn-telegram:hover {
+    background: #1c8abf;
+    box-shadow: 0 0 12px rgba(34,158,217,0.4);
 }
 
 /* Scrollbar */

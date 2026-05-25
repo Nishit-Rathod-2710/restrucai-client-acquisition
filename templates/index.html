@@ -96,9 +96,6 @@
                         </div>
                     </div>
                     <div class="header-actions">
-                        <button id="enrich-btn" class="btn-outline btn-enrich" onclick="app.startEnrichment()">
-                            <i data-lucide="zap"></i> FIND EMAILS
-                        </button>
                         <button id="export-btn" class="btn-outline" onclick="app.exportCsv()">
                             <i data-lucide="download"></i> EXTRACT CSV
                         </button>
@@ -107,20 +104,6 @@
                         </button>
                     </div>
                 </header>
-
-                <!-- Enrichment Progress Bar -->
-                <div id="enrich-progress-bar" class="enrich-progress hidden">
-                    <div class="enrich-progress-header">
-                        <span class="enrich-label">
-                            <i data-lucide="zap" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
-                            FINDING EMAILS
-                        </span>
-                        <span id="enrich-counter" class="enrich-counter">0 / 0 processed • 0 found</span>
-                    </div>
-                    <div class="enrich-bar-track">
-                        <div id="enrich-bar-fill" class="enrich-bar-fill" style="width:0%"></div>
-                    </div>
-                </div>
 
                 <div class="stats-grid">
                     <div class="stat-card">
@@ -188,11 +171,30 @@
                 </button>
             </div>
             <div class="notes-modal-body">
-                <textarea id="notes-modal-textarea" class="notes-modal-textarea" placeholder="Write your note here..."></textarea>
+                <div class="notes-question">
+                    <label class="notes-q-label">1. How many leads are you generating per month, and what percentage actually convert? <span class="notes-req">*</span></label>
+                    <textarea id="notes-q1" class="notes-modal-textarea notes-q-input" rows="2" placeholder="Your answer..."></textarea>
+                </div>
+                <div class="notes-question">
+                    <label class="notes-q-label">2. How much does it time/cost you to generate one lead right now? <span class="notes-req">*</span></label>
+                    <textarea id="notes-q2" class="notes-modal-textarea notes-q-input" rows="2" placeholder="Your answer..."></textarea>
+                </div>
+                <div class="notes-question">
+                    <label class="notes-q-label">3. Your current team size and the vision to expand it? <span class="notes-req">*</span></label>
+                    <textarea id="notes-q3" class="notes-modal-textarea notes-q-input" rows="2" placeholder="Your answer..."></textarea>
+                </div>
+                <div class="notes-question">
+                    <label class="notes-q-label">Additional notes</label>
+                    <textarea id="notes-modal-textarea" class="notes-modal-textarea" rows="2" placeholder="Anything else..."></textarea>
+                </div>
             </div>
             <div class="notes-modal-footer">
-                <span class="notes-modal-hint">Ctrl+Enter to save · Esc to cancel</span>
+                <span class="notes-modal-hint">All 3 questions required · Esc to cancel</span>
                 <div class="notes-modal-actions">
+                    <button class="notes-btn-telegram" onclick="app.informTeam()" title="Send these answers to your team on Telegram">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21.94 4.3a1.2 1.2 0 0 0-1.27-.2L3.4 11.04c-.9.36-.86 1.66.06 1.96l4.3 1.4 1.66 5.06c.25.74 1.2.93 1.71.33l2.4-2.84 4.36 3.2c.6.44 1.46.12 1.62-.6l3.02-13.9a1.2 1.2 0 0 0-.45-1.15zM9.9 14.1l8.1-5.6-6.7 6.3-.2 2.9-1.2-3.6z"/></svg>
+                        Inform Team
+                    </button>
                     <button class="notes-btn-cancel" onclick="app.closeNotesModal()">Cancel</button>
                     <button class="notes-btn-save" onclick="app.saveNotesModal()">Save Note</button>
                 </div>

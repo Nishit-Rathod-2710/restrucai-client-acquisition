@@ -1,6 +1,8 @@
 import os
+import re
 import threading
 import traceback
+from urllib.parse import quote
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
@@ -33,6 +35,23 @@ CALL_STATUSES = [
 ]
 # Canonical list exposed to frontend
 
+
+
+def csv_download_headers(filename):
+    """
+    Builds a Content-Disposition header that forces the browser to save the CSV
+    under the exact filename. Sanitizes to a safe ASCII name (quoted) and also
+    emits an RFC 5987 filename* so unicode/special chars survive too.
+    """
+    safe = re.sub(r'[^A-Za-z0-9._-]+', '_', filename).strip('_') or 'export'
+    if not safe.lower().endswith('.csv'):
+        safe += '.csv'
+    return {
+        'Content-Disposition': (
+            f'attachment; filename="{safe}"; '
+            f"filename*=UTF-8''{quote(safe)}"
+        )
+    }
 
 
 def login_required(f):
@@ -246,13 +265,13 @@ def admin_export_campaign(campaign_id):
                 str(lead.get('reviews', '')),
                 str(lead.get('google_url', '')).replace(',', '%2C'),
                 str(lead.get('call_status', 'Need to Call')).replace(',', ' '),
-                str(lead.get('notes', '')).replace(',', ' '),
+                str(lead.get('notes', '')).replace(',', ' ').replace('\r', ' ').replace('\n', ' | '),
             ]
             yield ','.join(row) + '\n'
 
-    filename = f"admin_leads_{campaign_id}_{campaign.get('name','export').replace(' ','_')}.csv"
+    filename = f"admin_leads_{campaign_id}_{campaign.get('name','export')}.csv"
     return Response(generate(), mimetype='text/csv',
-                    headers={'Content-Disposition': f'attachment; filename={filename}'})
+                    headers=csv_download_headers(filename))
 
 
 @app.route('/api/admin/export/all-users', methods=['GET'])
@@ -274,7 +293,7 @@ def admin_export_users():
             yield ','.join(row) + '\n'
 
     return Response(generate(), mimetype='text/csv',
-                    headers={'Content-Disposition': 'attachment; filename=admin_users_export.csv'})
+                    headers=csv_download_headers('admin_users_export.csv'))
 
 
 # --- Campaigns ---
@@ -520,15 +539,15 @@ def export_campaign(campaign_id):
                 str(lead.get('reviews', '')),
                 str(lead.get('google_url', '')).replace(',', '%2C'),
                 str(lead.get('call_status', 'Need to Call')).replace(',', ' '),
-                str(lead.get('notes', '')).replace(',', ' '),
+                str(lead.get('notes', '')).replace(',', ' ').replace('\r', ' ').replace('\n', ' | '),
             ]
             yield ','.join(row) + '\n'
 
-    filename = f"leads_{campaign_id}_{campaign.get('name', 'export').replace(' ', '_')}.csv"
+    filename = f"leads_{campaign_id}_{campaign.get('name', 'export')}.csv"
     return Response(
         generate(),
         mimetype='text/csv',
-        headers={'Content-Disposition': f'attachment; filename={filename}'}
+        headers=csv_download_headers(filename)
     )
 
 
