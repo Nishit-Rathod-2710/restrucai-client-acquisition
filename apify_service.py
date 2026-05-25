@@ -43,8 +43,9 @@ def start_scraper(query, location, max_results, webhook_url):
                 "requestUrl": webhook_url,
             }]
         )
-        run_id = run.get("id")
-        dataset_id = run.get("defaultDatasetId")
+        run_dict = run if isinstance(run, dict) else (run.dict() if hasattr(run, 'dict') else dict(run))
+        run_id = run_dict.get("id") or getattr(run, "id", None)
+        dataset_id = run_dict.get("defaultDatasetId") or run_dict.get("default_dataset_id") or getattr(run, "default_dataset_id", None)
         print(f"[Apify] Run started — runId={run_id} | datasetId={dataset_id}")
         return run_id, dataset_id
     except Exception as e:
@@ -141,5 +142,8 @@ def run_scraper(query, location, max_results=50):
         traceback.print_exc()
         raise
 
-    print(f"[Apify] Run complete. Dataset: {run.get('defaultDatasetId')} | Status: {run.get('status')}")
-    return fetch_dataset(run["defaultDatasetId"])
+    run_dict = run if isinstance(run, dict) else (run.dict() if hasattr(run, 'dict') else dict(run))
+    dataset_id = run_dict.get("defaultDatasetId") or run_dict.get("default_dataset_id") or getattr(run, "default_dataset_id", None)
+    status = run_dict.get("status") or getattr(run, "status", None)
+    print(f"[Apify] Run complete. Dataset: {dataset_id} | Status: {status}")
+    return fetch_dataset(dataset_id)

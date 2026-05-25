@@ -18,7 +18,7 @@ def _call_llm(prompt: str) -> str | None:
                 base_url="https://openrouter.ai/api/v1",
             )
             response = client.chat.completions.create(
-                model="openai/gpt-4.1-mini",   # OpenRouter model ID
+                model="openai/gpt-4o-mini",   # OpenRouter model ID
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that parses search requirements into JSON."},
                     {"role": "user", "content": prompt}
@@ -35,7 +35,7 @@ def _call_llm(prompt: str) -> str | None:
         try:
             client = OpenAI(api_key=openai_key)
             response = client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant that parses search requirements into JSON."},
                     {"role": "user", "content": prompt}
@@ -92,7 +92,7 @@ Format the response exactly as a JSON object with keys: "search_query", "locatio
     
     # Try to extract location (after 'in', 'around', 'near')
     location = ""
-    loc_match = re.search(r'(in|around|near)\s+([a-zA-Z\s,]+)', text)
+    loc_match = re.search(r'(in|around|near)\s+([a-zA-Z0-9\s,]+)', text)
     if loc_match:
         # Get the words after 'in' until the end of sentence or another preposition
         raw_loc = loc_match.group(2).strip()

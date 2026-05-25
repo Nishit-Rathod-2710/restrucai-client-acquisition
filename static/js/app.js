@@ -102,9 +102,15 @@ const app = {
             this.fetchCampaigns();
             return;
         }
-        // Full re-fetch so new row appears correctly
-        this.fetchCampaignDetails(this.state.activeCampaignId);
-        this.fetchCampaigns();
+        
+        // Debounce the fetches to prevent network flooding during rapid progressive insertions
+        if (!this._debouncedRefetch) {
+            this._debouncedRefetch = this._debounce(() => {
+                this.fetchCampaignDetails(this.state.activeCampaignId);
+                this.fetchCampaigns();
+            }, 300);
+        }
+        this._debouncedRefetch();
     },
 
     _refreshSidebarPills(campaignId, leads) {
@@ -330,7 +336,10 @@ const app = {
                             if (this.state.activeCampaignId === camp.id) {
                                 await this.fetchCampaignDetails(camp.id);
                             }
-                        } else if (this.state.activeCampaignId === camp.id && this.state.activeCampaignData) {
+                        } else if (this.state.activeCampaignId === camp.id && 
+                                   this.state.activeCampaignData &&
+                                   this.state.activeCampaignData.campaign &&
+                                   this.state.activeCampaignData.campaign.id === camp.id) {
                             if (stat.leads_count > this.state.activeCampaignData.leads.length) {
                                 await this.fetchCampaignDetails(camp.id);
                             }
@@ -721,6 +730,14 @@ const app = {
     closeDrawer() {
         document.getElementById('side-drawer').classList.remove('open');
         document.getElementById('drawer-overlay').classList.remove('open');
+    },
+
+    _debounce(func, wait) {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
     },
 };
 

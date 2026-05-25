@@ -322,13 +322,99 @@ def create_campaign():
             print(f"[Error] Campaign {campaign_id} failed to start:\n{traceback.format_exc()}")
             db.update_campaign_status(campaign_id, 'failed')
     else:
-        # Local dev path — background thread
+        # Local dev path — background thread with progressive dataset polling
         def scrape_job(cid, q, loc, mx):
+            import time
+            from apify_client import ApifyClient
             try:
-                results = run_scraper(q, loc, mx)
-                for lead in results:
-                    db.insert_lead(cid, lead)
-                db.update_campaign_status(cid, 'completed')
+                api_token = os.getenv('APIFY_API_TOKEN')
+                if not api_token or api_token == 'your_apify_token_here':
+                    raise Exception("APIFY_API_TOKEN is not set or invalid in .env file")
+
+                client = ApifyClient(api_token)
+
+                run_input = {
+                    "searchStringsArray": [q],
+                    "locationQuery": loc if loc else None,
+                    "maxCrawledPlacesPerSearch": mx,
+                    "language": "en",
+                    "searchMatching": "all",
+                    "placeMinimumStars": "",
+                    "website": "allPlaces",
+                    "skipClosedPlaces": False,
+                    "scrapePlaceDetailPage": False,
+                    "maxReviews": 0,
+                    "reviewsSort": "newest",
+                    "reviewsOrigin": "all",
+                    "maxImages": 0,
+                    "maxQuestions": 0,
+                    "scrapeContacts": True,
+                }
+
+                print(f"[Scraper Thread] Starting actor compass~crawler-google-places dynamically for campaign {cid}...")
+                run = client.actor("compass~crawler-google-places").start(run_input=run_input)
+                run_dict = run if isinstance(run, dict) else (run.dict() if hasattr(run, 'dict') else dict(run))
+                run_id = run_dict.get("id") or getattr(run, "id", None)
+                dataset_id = run_dict.get("defaultDatasetId") or run_dict.get("default_dataset_id") or getattr(run, "default_dataset_id", None)
+                print(f"[Scraper Thread] Run started: {run_id} | Dataset: {dataset_id}")
+
+                processed_count = 0
+                while True:
+                    # Check the run status (handling dict vs Pydantic model)
+                    run_info = client.run(run_id).get()
+                    run_info_dict = run_info if isinstance(run_info, dict) else (run_info.dict() if hasattr(run_info, 'dict') else dict(run_info))
+                    status = run_info_dict.get("status") or getattr(run_info, "status", None)
+
+                    # Fetch new items starting from processed_count offset
+                    items = list(client.dataset(dataset_id).iterate_items(offset=processed_count))
+                    
+                    if items:
+                        print(f"[Scraper Thread] Found {len(items)} new items from offset {processed_count}.")
+                        for item in items:
+                            email = item.get('email', '')
+                            if not email:
+                                contact_info = item.get('contactInfo', [])
+                                if isinstance(contact_info, list):
+                                    for contact in contact_info:
+                                        if isinstance(contact, dict) and contact.get('email'):
+                                            email = contact['email']
+                                            break
+                            if not email:
+                                emails = item.get('emails', [])
+                                if isinstance(emails, list) and emails:
+                                    email = emails[0] if isinstance(emails[0], str) else emails[0].get('value', '')
+
+                            lead = {
+                                "name": item.get("title", ""),
+                                "address": item.get("address", ""),
+                                "phone": item.get("phoneUnformatted", "") or item.get("phone", ""),
+                                "email": email or "",
+                                "website": item.get("website", ""),
+                                "rating": item.get("totalScore") or 0.0,
+                                "reviews": item.get("reviewsCount") or 0,
+                                "category": item.get("categoryName") or (
+                                    item.get("categories", [None])[0] if item.get("categories") else ""
+                                ),
+                                "latitude": (item.get("location") or {}).get("lat", 0.0),
+                                "longitude": (item.get("location") or {}).get("lng", 0.0),
+                                "google_url": item.get("url", ""),
+                                "raw_json": item
+                            }
+                            db.insert_lead(cid, lead)
+                        
+                        processed_count += len(items)
+
+                    # Break if run is finished
+                    if status in ["SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"]:
+                        if status == "SUCCEEDED":
+                            db.update_campaign_status(cid, 'completed')
+                            print(f"[Scraper Thread] Campaign {cid} completed successfully.")
+                        else:
+                            db.update_campaign_status(cid, 'failed')
+                            print(f"[Scraper Thread] Campaign {cid} finished with status: {status}")
+                        break
+
+                    time.sleep(5)
             except Exception:
                 print(f"[Error] Campaign {cid} failed:\n{traceback.format_exc()}")
                 db.update_campaign_status(cid, 'failed')
