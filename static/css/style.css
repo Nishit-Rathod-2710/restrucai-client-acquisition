@@ -831,6 +831,17 @@ textarea::placeholder {
     flex-shrink: 0;
 }
 
+/* When the dot sits inside the labelled status wrapper, the wrapper is pinned
+   to the right and the dot flows normally next to its text. */
+.realtime-status {
+    position: absolute;
+    right: 1.5rem;
+}
+.realtime-status .realtime-dot {
+    position: static;
+    right: auto;
+}
+
 .realtime-dot.connected {
     background: var(--success);
     box-shadow: 0 0 6px rgba(0, 230, 118, 0.6);

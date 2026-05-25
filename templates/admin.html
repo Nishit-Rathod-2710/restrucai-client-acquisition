@@ -408,7 +408,7 @@
             <div class="topbar-right">
                 <div style="display:flex;align-items:center;gap:0.5rem;font-family:var(--font-mono);font-size:0.72rem;color:var(--text-dim);">
                     <span class="realtime-dot disconnected" id="rt-dot"></span>
-                    <span id="rt-label">connecting…</span>
+                    <span id="rt-label">Real time connected AI</span>
                 </div>
             </div>
         </div>
@@ -733,7 +733,7 @@ function setRtStatus(connected) {
     const dot = document.getElementById('rt-dot');
     const lbl = document.getElementById('rt-label');
     dot.className = 'realtime-dot ' + (connected ? 'connected' : 'disconnected');
-    lbl.textContent = connected ? 'live' : 'polling (5s)';
+    lbl.textContent = connected ? 'Real time connected AI' : 'Reconnecting…';
 }
 
 // ── Init ───────────────────────────────────────────────────────────
