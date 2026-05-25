@@ -76,7 +76,7 @@ Editor to create tables. `leads.raw_json` stores the full Apify item as a JSON s
   It strips commas from fields and URL-encodes commas in `google_url`; preserve that escaping
   if you touch it.
 - **LLM models are hardcoded** in [query_builder.py](query_builder.py)
-  (`openai/gpt-4.1-mini` for OpenRouter, `gpt-4.1-mini` for OpenAI), using
+  (`openai/gpt-4o-mini` for OpenRouter, `gpt-4o-mini` for OpenAI), using
   `response_format={"type": "json_object"}`.
 - **Apify input is deliberately minimal** ([apify_service.py](apify_service.py)): only
   well-documented, non-deprecated actor fields are sent to avoid schema validation errors.
