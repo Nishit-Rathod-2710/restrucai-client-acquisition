@@ -37,6 +37,9 @@ scraping raises immediately; without an LLM key, query parsing silently falls ba
 - `FLASK_SECRET_KEY` — optional; defaults to a dev value.
 - `SUPABASE_URL` — Supabase project URL (required for DB).
 - `SUPABASE_KEY` — Supabase publishable/anon key (required for DB).
+- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` — optional; enable the Notes modal's
+  "Inform Team" button (`POST /api/leads/<id>/inform-team`). Without both, the endpoint
+  returns a "not configured" error and the button shows it.
 
 ## Architecture
 

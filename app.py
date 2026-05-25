@@ -2,6 +2,7 @@ import os
 import re
 import threading
 import traceback
+import requests
 from urllib.parse import quote
 from flask import Flask, render_template, request, jsonify, Response, session, redirect, url_for
 from flask_bcrypt import Bcrypt
@@ -52,6 +53,35 @@ def csv_download_headers(filename):
             f"filename*=UTF-8''{quote(safe)}"
         )
     }
+
+
+def send_telegram_message(text):
+    """
+    Sends an HTML-formatted message to the configured Telegram chat.
+    Requires TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in the environment.
+    Returns (ok: bool, error: str|None).
+    """
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    if not token or not chat_id:
+        return False, 'Telegram is not configured (set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID).'
+    try:
+        resp = requests.post(
+            f'https://api.telegram.org/bot{token}/sendMessage',
+            json={
+                'chat_id': chat_id,
+                'text': text,
+                'parse_mode': 'HTML',
+                'disable_web_page_preview': True,
+            },
+            timeout=10,
+        )
+        data = resp.json()
+        if resp.ok and data.get('ok'):
+            return True, None
+        return False, data.get('description', f'Telegram API error (HTTP {resp.status_code})')
+    except Exception as e:
+        return False, f'Failed to reach Telegram: {e}'
 
 
 def login_required(f):
@@ -469,6 +499,59 @@ def update_lead_notes(lead_id):
     notes = request.json.get('notes', '').strip()
     db.update_lead_notes(lead_id, notes)
     return jsonify({'success': True, 'notes': notes})
+
+
+@app.route('/api/leads/<int:lead_id>/inform-team', methods=['POST'])
+@login_required
+def inform_team(lead_id):
+    lead = db.get_lead(lead_id)
+    if not lead:
+        return jsonify({'error': 'Not found'}), 404
+
+    body = request.json or {}
+    q1 = (body.get('q1') or '').strip()
+    q2 = (body.get('q2') or '').strip()
+    q3 = (body.get('q3') or '').strip()
+    free = (body.get('free') or '').strip()
+    if not q1 or not q2 or not q3:
+        return jsonify({'error': 'All 3 questions must be answered before informing the team.'}), 400
+
+    def esc(s):
+        # Escape the few characters Telegram's HTML parse_mode treats specially.
+        return str(s or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    lines = [
+        '🔔 <b>New Lead Briefing</b>',
+        '',
+        f"<b>{esc(lead.get('name') or 'Unknown business')}</b>",
+    ]
+    if lead.get('phone'):
+        lines.append(f"📞 {esc(lead['phone'])}")
+    if lead.get('website'):
+        lines.append(f"🌐 {esc(lead['website'])}")
+    lines.append(f"📍 Status: {esc(lead.get('call_status') or 'Need to Call')}")
+    lines += [
+        '',
+        '<b>1. Leads/month &amp; conversion %</b>',
+        esc(q1),
+        '',
+        '<b>2. Time/cost per lead</b>',
+        esc(q2),
+        '',
+        '<b>3. Team size &amp; vision</b>',
+        esc(q3),
+    ]
+    if free:
+        lines += ['', '<b>Additional notes</b>', esc(free)]
+
+    sent_by = session.get('username') or session.get('user_id')
+    if sent_by:
+        lines += ['', f"<i>Sent by {esc(sent_by)}</i>"]
+
+    ok, err = send_telegram_message('\n'.join(lines))
+    if not ok:
+        return jsonify({'error': err}), 502
+    return jsonify({'success': True, 'message': 'Team notified on Telegram.'})
 
 
 # --- Enrichment ---

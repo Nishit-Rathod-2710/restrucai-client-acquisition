@@ -726,19 +726,38 @@ const app = {
         }
     },
 
-    // Placeholder — Telegram integration to be wired up later.
-    informTeam() {
+    // Sends the lead briefing (3 answers + notes) to the team's Telegram chat.
+    async informTeam() {
+        const leadId = this._notesModalLeadId;
+        if (!leadId) return;
         const a = this._collectNotesAnswers();
         if (!a.q1 || !a.q2 || !a.q3) {
             alert('Please answer all 3 required questions before informing the team.');
             return;
         }
-        // TODO: POST these answers to the Telegram bot endpoint once configured.
-        console.log('[Inform Team] payload (Telegram integration pending):', {
-            leadId: this._notesModalLeadId,
-            ...a,
-        });
-        alert('Telegram "Inform Team" is set up in the UI — backend integration coming soon.');
+        const btn = document.querySelector('.notes-btn-telegram');
+        const original = btn.innerHTML;
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        try {
+            const res = await fetch(`/api/leads/${leadId}/inform-team`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(a),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                alert(data.message || 'Team notified on Telegram.');
+            } else {
+                alert('Could not inform team: ' + (data.error || `HTTP ${res.status}`));
+            }
+        } catch (e) {
+            console.error('Inform team failed', e);
+            alert('Could not reach the server to inform the team.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+        }
     },
 
     // ── Lead detail drawer ────────────────────────────────────────────────────
