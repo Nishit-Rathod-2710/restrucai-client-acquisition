@@ -1118,8 +1118,14 @@ textarea::placeholder {
     outline: none;
     box-shadow: 0 0 0 3px rgba(200,241,53,0.12);
 }
+.notes-q-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 0.3rem;
+}
 .notes-add-question {
-    width: 100%;
+    flex: 1;
     background: transparent;
     border: 1px dashed var(--border-color);
     color: var(--text-main);
@@ -1128,11 +1134,25 @@ textarea::placeholder {
     padding: 0.55rem;
     border-radius: 8px;
     cursor: pointer;
-    margin-top: 0.3rem;
     transition: all 0.15s;
 }
 .notes-add-question:hover {
     border-color: var(--accent);
+    color: var(--accent);
+}
+.notes-reset-link {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    padding: 0.4rem 0.5rem;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+.notes-reset-link:hover {
     color: var(--accent);
 }
 .notes-empty {

@@ -597,6 +597,13 @@ const app = {
     //   {"v":2,"answers":{"<id>":"...", "free":"..."}}
     // Legacy notes (plain text or the old "### Heading" format) are mapped on read.
 
+    // Mirror of DEFAULT_NOTE_QUESTIONS in db.py — used by "Reset to defaults".
+    DEFAULT_NOTE_QUESTIONS: [
+        'How many leads are you generating per month, and what percentage actually convert?',
+        'What does your current process look like after a new lead comes in?',
+        'Your current team size and the vision to expand it?',
+    ],
+
     _esc(s) {
         return String(s == null ? '' : s)
             .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -734,7 +741,11 @@ const app = {
                     </label>
                     ${answer}
                 </div>`;
-        }).join('') + `<button class="notes-add-question" onclick="app.addNotesQuestion()">+ Add question</button>`;
+        }).join('') +
+            `<div class="notes-q-toolbar">
+                <button class="notes-add-question" onclick="app.addNotesQuestion()">+ Add question</button>
+                <button class="notes-reset-link" onclick="app.resetNoteQuestions()" title="Replace with the 3 default questions">↺ Reset to defaults</button>
+            </div>`;
         document.getElementById('notes-free-block').style.display = '';
     },
 
@@ -793,11 +804,21 @@ const app = {
         this._persistQuestions();
     },
 
-    // Persists the current question list (preserving answers by position) and
-    // returns to the normal answer view.
-    async _persistQuestions() {
+    resetNoteQuestions() {
+        if (!confirm('Reset to the 3 default questions? Your current questions will be replaced.')) return;
         this._syncAnswersFromDom();
-        const desired = this.state.noteQuestions
+        const oldAnswers = (this.state.noteQuestions || []).map(q => this._notesAnswers[q.id] || '');
+        this._editingQid = null;
+        const desired = this.DEFAULT_NOTE_QUESTIONS.map((t, i) => ({ text: t, answer: oldAnswers[i] || '' }));
+        this._persistQuestions(desired);
+    },
+
+    // Persists a question list (preserving answers by position) and returns to
+    // the normal answer view. `desiredArg` is [{text, answer}]; defaults to the
+    // current in-memory questions + their answers.
+    async _persistQuestions(desiredArg) {
+        this._syncAnswersFromDom();
+        const desired = desiredArg || this.state.noteQuestions
             .map(q => ({ text: (q.text || '').trim(), answer: this._notesAnswers[q.id] || '' }))
             .filter(d => d.text);
         if (!desired.length) { alert('Add at least one question.'); return; }
