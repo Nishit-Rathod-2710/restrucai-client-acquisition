@@ -504,7 +504,12 @@ def update_lead_notes(lead_id):
 @app.route('/api/note-questions', methods=['GET'])
 @login_required
 def get_note_questions():
-    questions = db.get_note_questions(session['user_id'])
+    try:
+        questions = db.get_note_questions(session['user_id'])
+    except Exception:
+        # Table missing or DB error — fall back to defaults so the UI isn't empty.
+        print(f"[note-questions] falling back to defaults:\n{traceback.format_exc()}")
+        questions = [{'id': f'd{i}', 'text': t} for i, t in enumerate(db.DEFAULT_NOTE_QUESTIONS)]
     return jsonify({'questions': questions})
 
 

@@ -609,15 +609,22 @@ const app = {
             .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     },
 
+    // Default questions as objects with synthetic ids, used when the server has
+    // none yet (e.g. note_questions table not created) so the UI is never empty.
+    _defaultQuestionObjs() {
+        return this.DEFAULT_NOTE_QUESTIONS.map((text, i) => ({ id: 'd' + i, text }));
+    },
+
     async _ensureNoteQuestions() {
-        if (this.state.noteQuestions) return this.state.noteQuestions;
+        if (this.state.noteQuestions && this.state.noteQuestions.length) return this.state.noteQuestions;
         try {
             const res = await fetch('/api/note-questions');
             const data = await res.json();
-            this.state.noteQuestions = (data.questions || []).map(q => ({ id: q.id, text: q.text }));
+            const qs = (data.questions || []).map(q => ({ id: q.id, text: q.text }));
+            this.state.noteQuestions = qs.length ? qs : this._defaultQuestionObjs();
         } catch (e) {
-            console.error('Failed to load note questions', e);
-            this.state.noteQuestions = [];
+            console.error('Failed to load note questions; using defaults', e);
+            this.state.noteQuestions = this._defaultQuestionObjs();
         }
         return this.state.noteQuestions;
     },
