@@ -681,12 +681,12 @@ const app = {
         const lead = this.state.activeCampaignData?.leads?.find(l => l.id === leadId);
         if (!lead) return;
         this._notesModalLeadId = leadId;
-        this._notesEditMode = false;
+        this._editingQid = null;
 
         await this._ensureNoteQuestions();
         document.getElementById('notes-modal-lead-name').textContent = lead.name || 'Note';
 
-        // Working answer map preserved across edit-mode toggles.
+        // Working answer map preserved across inline question edits.
         this._notesAnswers = this._answersForLead(lead.notes || '');
         document.getElementById('notes-modal-textarea').value = this._notesAnswers.free || '';
         this._renderNotesView();
@@ -699,121 +699,132 @@ const app = {
 
         this._notesKeyHandler = (e) => {
             if (e.key === 'Escape') { e.preventDefault(); this.closeNotesModal(); }
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !this._notesEditMode) {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && this._editingQid == null) {
                 e.preventDefault(); this.saveNotesModal();
             }
         };
         document.querySelector('.notes-modal').addEventListener('keydown', this._notesKeyHandler);
     },
 
-    // Render the answer view (one textarea per question).
+    // Render the answer view: a textarea per question, each with a pen to edit
+    // the question inline, plus an "+ Add question" button at the bottom.
     _renderNotesView() {
         const qs = this.state.noteQuestions || [];
         const c = document.getElementById('notes-questions-container');
-        c.innerHTML = qs.map((q, i) => `
-            <div class="notes-question">
-                <label class="notes-q-label">${i + 1}. ${this._esc(q.text)} <span class="notes-req">*</span></label>
-                <textarea class="notes-modal-textarea notes-q-input" data-qid="${q.id}" rows="2"
-                          placeholder="Your answer...">${this._esc(this._notesAnswers[q.id] || '')}</textarea>
-            </div>`).join('') || '<p class="notes-empty">No questions yet. Click “Edit questions” to add one.</p>';
+        c.innerHTML = qs.map((q, i) => {
+            const answer = `<textarea class="notes-modal-textarea notes-q-input" data-qid="${q.id}" rows="2"
+                          placeholder="Your answer...">${this._esc(this._notesAnswers[q.id] || '')}</textarea>`;
+            if (this._editingQid === q.id) {
+                return `
+                <div class="notes-question">
+                    <div class="notes-q-editrow">
+                        <input class="notes-edit-input" id="notes-inline-input" value="${this._esc(q.text)}" placeholder="Question text...">
+                        <button class="notes-q-iconbtn save" onclick="app.saveInlineQuestion()" title="Save">✓</button>
+                        <button class="notes-q-iconbtn" onclick="app.cancelInlineQuestion()" title="Cancel">✕</button>
+                        <button class="notes-q-iconbtn del" onclick="app.deleteInlineQuestion()" title="Delete question">🗑</button>
+                    </div>
+                    ${answer}
+                </div>`;
+            }
+            return `
+                <div class="notes-question">
+                    <label class="notes-q-label">
+                        <span>${i + 1}. ${this._esc(q.text)} <span class="notes-req">*</span></span>
+                        <button class="notes-q-iconbtn pen" onclick="app.editQuestionInline(${JSON.stringify(q.id)})" title="Edit question">✎</button>
+                    </label>
+                    ${answer}
+                </div>`;
+        }).join('') + `<button class="notes-add-question" onclick="app.addNotesQuestion()">+ Add question</button>`;
         document.getElementById('notes-free-block').style.display = '';
-        document.getElementById('notes-edit-toggle').textContent = '✎ Edit questions';
-        document.getElementById('notes-actions-answer').classList.remove('hidden');
-        document.getElementById('notes-actions-edit').classList.add('hidden');
-        document.getElementById('notes-modal-hint').textContent = 'All questions required · Esc to cancel';
-    },
-
-    // Render the edit view (rename / add / remove questions).
-    _renderNotesEdit() {
-        const c = document.getElementById('notes-questions-container');
-        c.innerHTML = this._questionsDraft.map((q, i) => `
-            <div class="notes-edit-row">
-                <span class="notes-edit-num">${i + 1}.</span>
-                <input class="notes-edit-input" data-idx="${i}" value="${this._esc(q.text)}" placeholder="Question text...">
-                <button class="notes-edit-del" onclick="app.removeNotesQuestion(${i})" title="Remove">✕</button>
-            </div>`).join('') +
-            `<button class="notes-add-question" onclick="app.addNotesQuestion()">+ Add question</button>`;
-        document.getElementById('notes-free-block').style.display = 'none';
-        document.getElementById('notes-edit-toggle').textContent = '← Back to answers';
-        document.getElementById('notes-actions-answer').classList.add('hidden');
-        document.getElementById('notes-actions-edit').classList.remove('hidden');
-        document.getElementById('notes-modal-hint').textContent = 'Rename, add, or remove questions';
     },
 
     _syncAnswersFromDom() {
         document.querySelectorAll('#notes-questions-container textarea[data-qid]').forEach(ta => {
             this._notesAnswers[ta.dataset.qid] = ta.value;
         });
-        this._notesAnswers.free = document.getElementById('notes-modal-textarea').value;
+        const free = document.getElementById('notes-modal-textarea');
+        if (free) this._notesAnswers.free = free.value;
     },
 
-    _syncDraftFromDom() {
-        document.querySelectorAll('#notes-questions-container input[data-idx]').forEach(inp => {
-            const i = +inp.dataset.idx;
-            if (this._questionsDraft[i]) this._questionsDraft[i].text = inp.value;
-        });
+    editQuestionInline(qid) {
+        this._syncAnswersFromDom();
+        this._editingQid = qid;
+        this._renderNotesView();
+        const inp = document.getElementById('notes-inline-input');
+        if (inp) { inp.focus(); inp.select(); }
     },
 
-    toggleNotesEdit() {
-        if (!this._notesEditMode) {
-            this._syncAnswersFromDom();
-            this._questionsDraft = (this.state.noteQuestions || []).map(q => ({ id: q.id, text: q.text }));
-            this._notesEditMode = true;
-            this._renderNotesEdit();
-        } else {
-            this.cancelNotesEdit();
+    cancelInlineQuestion() {
+        // Drop an unsaved newly-added question.
+        if (this._editingQid === '__new__') {
+            this.state.noteQuestions = this.state.noteQuestions.filter(q => q.id !== '__new__');
         }
-    },
-
-    cancelNotesEdit() {
-        this._notesEditMode = false;
+        this._editingQid = null;
         this._renderNotesView();
     },
 
     addNotesQuestion() {
-        this._syncDraftFromDom();
-        this._questionsDraft.push({ id: null, text: '' });
-        this._renderNotesEdit();
-        const inputs = document.querySelectorAll('#notes-questions-container input[data-idx]');
-        if (inputs.length) inputs[inputs.length - 1].focus();
+        if (this._editingQid != null) return;  // finish the current edit first
+        this._syncAnswersFromDom();
+        this.state.noteQuestions.push({ id: '__new__', text: '' });
+        this._editingQid = '__new__';
+        this._renderNotesView();
+        const inp = document.getElementById('notes-inline-input');
+        if (inp) inp.focus();
     },
 
-    removeNotesQuestion(idx) {
-        this._syncDraftFromDom();
-        this._questionsDraft.splice(idx, 1);
-        this._renderNotesEdit();
+    saveInlineQuestion() {
+        this._syncAnswersFromDom();
+        const inp = document.getElementById('notes-inline-input');
+        const text = (inp ? inp.value : '').trim();
+        if (!text) { alert('Question text cannot be empty.'); return; }
+        const q = this.state.noteQuestions.find(x => x.id === this._editingQid);
+        if (q) q.text = text;
+        this._persistQuestions();
     },
 
-    async saveNotesQuestions() {
-        this._syncDraftFromDom();
-        const texts = this._questionsDraft.map(q => q.text.trim()).filter(Boolean);
-        if (!texts.length) { alert('Add at least one question.'); return; }
-        const btn = document.querySelector('#notes-actions-edit .notes-btn-save');
-        btn.disabled = true; btn.textContent = 'Saving...';
+    deleteInlineQuestion() {
+        this._syncAnswersFromDom();
+        this.state.noteQuestions = this.state.noteQuestions.filter(q => q.id !== this._editingQid);
+        if (!this.state.noteQuestions.length) {
+            alert('You must keep at least one question.');
+            return this.cancelInlineQuestion();
+        }
+        this._persistQuestions();
+    },
+
+    // Persists the current question list (preserving answers by position) and
+    // returns to the normal answer view.
+    async _persistQuestions() {
+        this._syncAnswersFromDom();
+        const desired = this.state.noteQuestions
+            .map(q => ({ text: (q.text || '').trim(), answer: this._notesAnswers[q.id] || '' }))
+            .filter(d => d.text);
+        if (!desired.length) { alert('Add at least one question.'); return; }
+        const btn = document.querySelector('#notes-inline-input')?.parentNode.querySelector('.save');
+        if (btn) { btn.disabled = true; btn.textContent = '…'; }
         try {
             const res = await fetch('/api/note-questions', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ questions: texts }),
+                body: JSON.stringify({ questions: desired.map(d => d.text) }),
             });
             const data = await res.json();
             if (res.ok && data.success) {
-                // Remap existing answers onto new question ids by position.
-                const oldAnswers = this.state.noteQuestions.map(q => this._notesAnswers[q.id] || '');
                 this.state.noteQuestions = data.questions.map(q => ({ id: q.id, text: q.text }));
                 const newAnswers = { free: this._notesAnswers.free || '' };
-                this.state.noteQuestions.forEach((q, i) => { newAnswers[q.id] = oldAnswers[i] || ''; });
+                this.state.noteQuestions.forEach((q, i) => { newAnswers[q.id] = desired[i].answer || ''; });
                 this._notesAnswers = newAnswers;
-                this._notesEditMode = false;
+                this._editingQid = null;
                 this._renderNotesView();
             } else {
-                alert('Could not save questions: ' + (data.error || `HTTP ${res.status}`));
+                alert('Could not save question: ' + (data.error || `HTTP ${res.status}`));
+                if (btn) { btn.disabled = false; btn.textContent = '✓'; }
             }
         } catch (e) {
-            console.error('Failed to save questions', e);
-            alert('Could not reach the server to save questions.');
-        } finally {
-            btn.disabled = false; btn.textContent = 'Save Questions';
+            console.error('Failed to save question', e);
+            alert('Could not reach the server to save the question.');
+            if (btn) { btn.disabled = false; btn.textContent = '✓'; }
         }
     },
 
@@ -825,7 +836,7 @@ const app = {
             this._notesKeyHandler = null;
         }
         this._notesModalLeadId = null;
-        this._notesEditMode = false;
+        this._editingQid = null;
     },
 
     // Returns { items: [{id, question, answer}], free, allAnswered }.
