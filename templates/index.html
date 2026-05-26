@@ -183,13 +183,53 @@
             <div class="notes-modal-footer">
                 <span class="notes-modal-hint">All questions required · Esc to cancel</span>
                 <div class="notes-modal-actions" id="notes-actions-answer">
+                    <button class="notes-btn-draft" onclick="app.draftEmail()" title="Generate a draft email with the AI agent">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                        Draft Email
+                    </button>
                     <button class="notes-btn-telegram" onclick="app.informTeam()" title="Send these answers to your team on Telegram">
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M21.94 4.3a1.2 1.2 0 0 0-1.27-.2L3.4 11.04c-.9.36-.86 1.66.06 1.96l4.3 1.4 1.66 5.06c.25.74 1.2.93 1.71.33l2.4-2.84 4.36 3.2c.6.44 1.46.12 1.62-.6l3.02-13.9a1.2 1.2 0 0 0-.45-1.15zM9.9 14.1l8.1-5.6-6.7 6.3-.2 2.9-1.2-3.6z"/></svg>
                         Inform Team
                     </button>
-                    <button class="notes-btn-cancel" onclick="app.closeNotesModal()">Cancel</button>
                     <button class="notes-btn-save" onclick="app.saveNotesModal()">Save Note</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Email draft side panel (slides in next to the notes modal) -->
+        <div id="draft-panel" class="draft-panel" onclick="event.stopPropagation()">
+            <div class="draft-header">
+                <div class="draft-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span>Email Draft</span>
+                </div>
+                <button class="draft-close" onclick="app.closeDraftPanel()" title="Close">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="draft-body">
+                <div class="draft-field">
+                    <label class="draft-label">To</label>
+                    <input id="draft-to" class="draft-input" placeholder="recipient@example.com">
+                </div>
+                <div class="draft-field">
+                    <label class="draft-label">Subject</label>
+                    <input id="draft-subject" class="draft-input" placeholder="Subject line">
+                </div>
+                <div class="draft-field draft-field-grow">
+                    <label class="draft-label">Body</label>
+                    <textarea id="draft-body" class="draft-textarea" placeholder="The agent's draft will appear here. Edit before sending."></textarea>
+                </div>
+                <div id="draft-loading" class="draft-loading hidden">
+                    <span class="draft-spinner"></span> Drafting with AI…
+                </div>
+            </div>
+            <div class="draft-footer">
+                <span class="draft-hint">Review and edit before sending</span>
+                <button class="draft-btn-send" id="draft-send-btn" onclick="app.sendDraftEmail()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    Send Email
+                </button>
             </div>
         </div>
     </div>

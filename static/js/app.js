@@ -5,6 +5,7 @@ let CALL_STATUSES = [
     'Not Answered',
     'Interested',
     'Follow-Up',
+    'Closed',
 ];
 
 const STATUS_COLORS = {
@@ -13,7 +14,12 @@ const STATUS_COLORS = {
     'Not Answered': '#ffbd2e',
     'Interested':   '#00e676',
     'Follow-Up':    '#C8F135',
+    'Closed':       '#6d4cff',
 };
+
+// Statuses where the Draft Email button is allowed (lead is qualified enough
+// to send personalised outreach).
+const DRAFT_EMAIL_ALLOWED_STATUSES = ['Interested', 'Follow-Up'];
 
 // ── App ───────────────────────────────────────────────────────────────────────
 const app = {
@@ -708,6 +714,7 @@ const app = {
         // Working answer map preserved across inline question edits.
         this._notesAnswers = this._answersForLead(lead.notes || '');
         document.getElementById('notes-modal-textarea').value = this._notesAnswers.free || '';
+        this._refreshDraftButton(lead.call_status);
         this._renderNotesView();
 
         document.getElementById('notes-modal-overlay').classList.add('open');
@@ -873,6 +880,7 @@ const app = {
             modal.removeEventListener('keydown', this._notesKeyHandler);
             this._notesKeyHandler = null;
         }
+        this.closeDraftPanel();
         this._notesModalLeadId = null;
         this._editingQid = null;
     },
@@ -965,6 +973,120 @@ const app = {
             btn.disabled = false;
             btn.innerHTML = original;
         }
+    },
+
+    // ── Email draft (n8n webhook) ─────────────────────────────────────────────
+
+    // Visually disable/enable the Draft Email button based on the lead's status.
+    _refreshDraftButton(status) {
+        const btn = document.querySelector('.notes-btn-draft');
+        if (!btn) return;
+        const allowed = DRAFT_EMAIL_ALLOWED_STATUSES.includes(status);
+        btn.disabled = !allowed;
+        btn.title = allowed
+            ? 'Generate a draft email with the AI agent'
+            : 'Set the lead status to Interested or Follow-Up to enable drafting';
+    },
+
+    async draftEmail() {
+        const leadId = this._notesModalLeadId;
+        if (!leadId) return;
+        const lead = this.state.activeCampaignData?.leads?.find(l => l.id === leadId);
+        if (!DRAFT_EMAIL_ALLOWED_STATUSES.includes(lead?.call_status)) {
+            UI.toast('Set the lead status to "Interested" or "Follow-Up" before drafting an email.', 'info');
+            return;
+        }
+        const c = this._collectNotesAnswers();  // {items, free, allAnswered}
+
+        // Open the side panel immediately in a loading state.
+        this._openDraftPanel(lead?.email || '');
+        const loading = document.getElementById('draft-loading');
+        const body = document.getElementById('draft-body');
+        const subj = document.getElementById('draft-subject');
+        loading.classList.remove('hidden');
+        body.value = '';
+        subj.value = '';
+
+        const btn = document.querySelector('.notes-btn-draft');
+        const orig = btn ? btn.innerHTML : null;
+        if (btn) { btn.disabled = true; btn.textContent = 'Drafting…'; }
+        try {
+            const res = await fetch(`/api/leads/${leadId}/draft-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    items: c.items.map(it => ({ question: it.question, answer: it.answer })),
+                    free: c.free,
+                }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                subj.value = data.subject || '';
+                body.value = data.body || '';
+                if (data.to) document.getElementById('draft-to').value = data.to;
+                UI.toast('Draft ready — review and send.', 'success');
+            } else {
+                UI.toast('Drafting failed: ' + (data.error || `HTTP ${res.status}`), 'error');
+            }
+        } catch (e) {
+            console.error('Draft email failed', e);
+            UI.toast('Could not reach the drafting agent.', 'error');
+        } finally {
+            loading.classList.add('hidden');
+            if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+        }
+    },
+
+    async sendDraftEmail() {
+        const leadId = this._notesModalLeadId;
+        if (!leadId) return;
+        const to = document.getElementById('draft-to').value.trim();
+        const subject = document.getElementById('draft-subject').value.trim();
+        const body = document.getElementById('draft-body').value.trim();
+        if (!to) { UI.toast('Recipient email is required.', 'error'); return; }
+        if (!subject || !body) { UI.toast('Subject and body are required.', 'error'); return; }
+
+        const ok = await UI.confirm({
+            title: 'Send this email?',
+            message: `The email will be sent to ${to}.`,
+            confirmText: 'Send', cancelText: 'Cancel',
+        });
+        if (!ok) return;
+
+        const btn = document.getElementById('draft-send-btn');
+        const orig = btn.innerHTML;
+        btn.disabled = true; btn.textContent = 'Sending…';
+        try {
+            const res = await fetch(`/api/leads/${leadId}/send-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to, subject, body }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                UI.toast(data.message || 'Email sent.', 'success');
+                this.closeDraftPanel();
+            } else {
+                UI.toast('Send failed: ' + (data.error || `HTTP ${res.status}`), 'error');
+            }
+        } catch (e) {
+            console.error('Send email failed', e);
+            UI.toast('Could not reach the send-email agent.', 'error');
+        } finally {
+            btn.disabled = false; btn.innerHTML = orig;
+        }
+    },
+
+    _openDraftPanel(toEmail) {
+        const panel = document.getElementById('draft-panel');
+        if (toEmail) document.getElementById('draft-to').value = toEmail;
+        panel.classList.add('open');
+        document.getElementById('notes-modal-overlay').classList.add('with-draft');
+    },
+
+    closeDraftPanel() {
+        document.getElementById('draft-panel').classList.remove('open');
+        document.getElementById('notes-modal-overlay').classList.remove('with-draft');
     },
 
     // ── Lead detail drawer ────────────────────────────────────────────────────

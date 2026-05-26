@@ -33,6 +33,7 @@ CALL_STATUSES = [
     'Not Answered',
     'Interested',
     'Follow-Up',
+    'Closed',
 ]
 # Canonical list exposed to frontend
 
@@ -571,6 +572,102 @@ def inform_team(lead_id):
     if not ok:
         return jsonify({'error': err}), 502
     return jsonify({'success': True, 'message': 'Team notified on Telegram.'})
+
+
+# --- Email drafting (n8n webhooks) ---
+
+N8N_DRAFT_URL = 'https://n8n.srv879062.hstgr.cloud/webhook/n8nEmailDrafting'
+N8N_SEND_URL = 'https://n8n.srv879062.hstgr.cloud/webhook/SendEmail'
+
+
+def _draft_payload(lead, items, free):
+    return {
+        'lead': {
+            'name': lead.get('name'),
+            'email': lead.get('email'),
+            'phone': lead.get('phone'),
+            'website': lead.get('website'),
+            'address': lead.get('address'),
+            'category': lead.get('category'),
+            'call_status': lead.get('call_status'),
+        },
+        'answers': [{'question': it.get('question'), 'answer': it.get('answer')} for it in (items or [])],
+        'free_notes': free or '',
+        'sender': session.get('username'),
+    }
+
+
+@app.route('/api/leads/<int:lead_id>/draft-email', methods=['POST'])
+@login_required
+def draft_email(lead_id):
+    lead = db.get_lead(lead_id)
+    if not lead:
+        return jsonify({'error': 'Not found'}), 404
+    body = request.json or {}
+    payload = _draft_payload(lead, body.get('items', []), body.get('free', ''))
+    try:
+        resp = requests.post(N8N_DRAFT_URL, json=payload, timeout=60)
+    except Exception as e:
+        return jsonify({'error': f'Failed to reach drafting agent: {e}'}), 502
+    if not resp.ok:
+        return jsonify({'error': f'Drafting agent returned HTTP {resp.status_code}',
+                        'detail': resp.text[:400]}), 502
+    try:
+        data = resp.json()
+    except Exception:
+        return jsonify({'error': 'Drafting agent did not return JSON',
+                        'detail': resp.text[:400]}), 502
+    # n8n shapes the response a few ways depending on the workflow:
+    #   {subject, body, ...}
+    #   [{subject, body, ...}]                              (Respond-to-Webhook list)
+    #   [{"output": {subject, body, ...}}]                  (AI Agent + Structured Output Parser)
+    #   {"output": {subject, body, ...}}
+    # Unwrap any list, then drill into "output" if present.
+    if isinstance(data, list) and data:
+        data = data[0]
+    if isinstance(data, dict) and isinstance(data.get('output'), dict):
+        data = data['output']
+    if not isinstance(data, dict):
+        data = {}
+    subject = data.get('subject') or ''
+    body_text = data.get('body') or ''
+    to_addr = data.get('to') or lead.get('email') or ''
+    return jsonify({'success': True, 'subject': subject, 'body': body_text, 'to': to_addr})
+
+
+@app.route('/api/leads/<int:lead_id>/send-email', methods=['POST'])
+@login_required
+def send_email(lead_id):
+    lead = db.get_lead(lead_id)
+    if not lead:
+        return jsonify({'error': 'Not found'}), 404
+    body = request.json or {}
+    to_addr = (body.get('to') or lead.get('email') or '').strip()
+    subject = (body.get('subject') or '').strip()
+    body_text = (body.get('body') or '').strip()
+    if not to_addr:
+        return jsonify({'error': 'Recipient email is missing on the lead.'}), 400
+    if not subject or not body_text:
+        return jsonify({'error': 'Subject and body are required.'}), 400
+    payload = {
+        'to': to_addr,
+        'subject': subject,
+        'body': body_text,
+        'lead': {
+            'id': lead.get('id'),
+            'name': lead.get('name'),
+            'website': lead.get('website'),
+        },
+        'sender': session.get('username'),
+    }
+    try:
+        resp = requests.post(N8N_SEND_URL, json=payload, timeout=60)
+    except Exception as e:
+        return jsonify({'error': f'Failed to reach send-email agent: {e}'}), 502
+    if not resp.ok:
+        return jsonify({'error': f'Send-email agent returned HTTP {resp.status_code}',
+                        'detail': resp.text[:400]}), 502
+    return jsonify({'success': True, 'message': f'Email sent to {to_addr}.'})
 
 
 # --- Enrichment ---

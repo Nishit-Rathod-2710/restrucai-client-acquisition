@@ -1220,12 +1220,22 @@ textarea::placeholder {
 
 .notes-modal-actions {
     display: flex;
+    justify-content: space-between;
+    align-items: center;
     gap: 0.6rem;
+    width: 100%;
     flex-shrink: 0;
 }
 
 .notes-modal-actions.hidden {
     display: none;
+}
+
+/* Breathing room between the "+ Add question / Reset" toolbar and "Additional notes" */
+#notes-free-block {
+    margin-top: 1.4rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--border-color);
 }
 
 .notes-btn-cancel {
@@ -1282,7 +1292,6 @@ textarea::placeholder {
     padding: 0.45rem 1rem;
     border-radius: 8px;
     cursor: pointer;
-    margin-right: auto;
     transition: all 0.15s;
 }
 
@@ -1436,3 +1445,195 @@ textarea::placeholder {
 .ui-toast.error .ui-toast-icon { color: var(--danger); }
 .ui-toast.info { border-left-color: var(--accent); }
 .ui-toast.info .ui-toast-icon { color: var(--accent); }
+
+/* ── Email Draft side panel ────────────────────────────────────────── */
+.notes-modal-overlay { gap: 1rem; }
+
+.notes-btn-draft {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: linear-gradient(135deg, #6d4cff, #9a6bff);
+    border: none;
+    color: #fff;
+    font-family: var(--font-ui);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.45rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.notes-btn-draft:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 0 12px rgba(154, 107, 255, 0.45);
+}
+.notes-btn-draft:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    filter: grayscale(0.6);
+}
+.notes-btn-draft:disabled:hover {
+    filter: grayscale(0.6);
+    box-shadow: none;
+}
+
+/* When the draft panel is open, stretch both children of the overlay to the
+   same height so the two panels look like a matched pair. */
+.notes-modal-overlay.with-draft {
+    align-items: stretch;
+    padding: 1.5rem 0;
+}
+.notes-modal-overlay.with-draft .notes-modal,
+.notes-modal-overlay.with-draft .draft-panel {
+    height: calc(100vh - 3rem);
+    max-height: calc(100vh - 3rem);
+}
+
+.draft-panel {
+    display: none;
+    flex-direction: column;
+    width: 480px;
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100vh - 3rem);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(154, 107, 255, 0.18);
+    transform: translateX(20px);
+    opacity: 0;
+    transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease;
+}
+.draft-panel.open {
+    display: flex;
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.draft-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.draft-title {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-family: var(--font-ui);
+    font-weight: 700;
+    color: var(--text-light);
+    font-size: 0.95rem;
+}
+.draft-title svg { color: #9a6bff; }
+.draft-close {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 0.2rem;
+    border-radius: 6px;
+    transition: all 0.15s;
+}
+.draft-close:hover { color: var(--text-light); background: rgba(255,255,255,0.05); }
+
+.draft-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 1rem 1.2rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+.draft-field { display: flex; flex-direction: column; gap: 0.35rem; }
+.draft-field-grow { flex: 1 1 auto; min-height: 0; }
+
+.draft-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.draft-input, .draft-textarea {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 9px;
+    color: var(--text-light);
+    font-family: var(--font-ui);
+    font-size: 0.9rem;
+    padding: 0.6rem 0.8rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.draft-input:focus, .draft-textarea:focus {
+    border-color: #9a6bff;
+    box-shadow: 0 0 0 3px rgba(154, 107, 255, 0.15);
+}
+.draft-textarea {
+    flex: 1 1 auto;
+    min-height: 220px;
+    resize: vertical;
+    line-height: 1.5;
+    font-family: var(--font-ui);
+}
+.draft-input::placeholder, .draft-textarea::placeholder { color: var(--text-dim); }
+
+.draft-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    padding: 0.4rem 0;
+}
+.draft-loading.hidden { display: none; }
+.draft-spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border-color);
+    border-top-color: #9a6bff;
+    border-radius: 50%;
+    animation: draft-spin 0.7s linear infinite;
+    display: inline-block;
+}
+@keyframes draft-spin { to { transform: rotate(360deg); } }
+
+.draft-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.85rem 1.2rem 1.1rem;
+    border-top: 1px solid var(--border-color);
+}
+.draft-hint {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+}
+.draft-btn-send {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: var(--accent);
+    border: none;
+    color: #000;
+    font-family: var(--font-ui);
+    font-size: 0.88rem;
+    font-weight: 700;
+    padding: 0.55rem 1.2rem;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.draft-btn-send:hover { background: var(--accent-hover); box-shadow: 0 0 12px var(--accent-glow); }
+.draft-btn-send:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* On narrower screens, stack draft below the notes modal */
+@media (max-width: 1080px) {
+    .notes-modal-overlay { flex-wrap: wrap; align-content: center; overflow-y: auto; padding: 1.5rem 0; }
+    .draft-panel { width: 480px; }
+}
