@@ -12,7 +12,7 @@ from functools import wraps
 import db
 from query_builder import parse_requirement
 from apify_service import (
-    run_scraper, start_scraper, fetch_dataset,
+    start_scraper, fetch_dataset,
     build_run_input, run_attrs, normalize_item, ACTOR_ID,
 )
 from email_enricher import enrich_campaign
@@ -54,6 +54,29 @@ def csv_download_headers(filename):
             f"filename*=UTF-8''{quote(safe)}"
         )
     }
+
+
+def _generate_leads_csv(leads):
+    """
+    Generator function that yields lines of a CSV representing a list of leads.
+    Shared by both regular users and admins.
+    """
+    yield "Name,Address,Phone,Email,Website,Category,Rating,Reviews,Google URL,Status,Notes\n"
+    for lead in leads:
+        row = [
+            str(lead.get('name', '')).replace(',', ' '),
+            str(lead.get('address', '')).replace(',', ' '),
+            str(lead.get('phone', '')).replace(',', ' '),
+            str(lead.get('email', '')).replace(',', ' '),
+            str(lead.get('website', '')).replace(',', ' '),
+            str(lead.get('category', '')).replace(',', ' '),
+            str(lead.get('rating', '')),
+            str(lead.get('reviews', '')),
+            str(lead.get('google_url', '')).replace(',', '%2C'),
+            str(lead.get('call_status', 'Need to Call')).replace(',', ' '),
+            str(lead.get('notes', '')).replace(',', ' ').replace('\r', ' ').replace('\n', ' | '),
+        ]
+        yield ','.join(row) + '\n'
 
 
 def send_telegram_message(text):
@@ -282,26 +305,8 @@ def admin_export_campaign(campaign_id):
         return jsonify({'error': 'Not found'}), 404
     leads = db.get_leads(campaign_id)
 
-    def generate():
-        yield "Name,Address,Phone,Email,Website,Category,Rating,Reviews,Google URL,Status,Notes\n"
-        for lead in leads:
-            row = [
-                str(lead.get('name', '')).replace(',', ' '),
-                str(lead.get('address', '')).replace(',', ' '),
-                str(lead.get('phone', '')).replace(',', ' '),
-                str(lead.get('email', '')).replace(',', ' '),
-                str(lead.get('website', '')).replace(',', ' '),
-                str(lead.get('category', '')).replace(',', ' '),
-                str(lead.get('rating', '')),
-                str(lead.get('reviews', '')),
-                str(lead.get('google_url', '')).replace(',', '%2C'),
-                str(lead.get('call_status', 'Need to Call')).replace(',', ' '),
-                str(lead.get('notes', '')).replace(',', ' ').replace('\r', ' ').replace('\n', ' | '),
-            ]
-            yield ','.join(row) + '\n'
-
     filename = f"admin_leads_{campaign_id}_{campaign.get('name','export')}.csv"
-    return Response(generate(), mimetype='text/csv',
+    return Response(_generate_leads_csv(leads), mimetype='text/csv',
                     headers=csv_download_headers(filename))
 
 
@@ -612,7 +617,7 @@ def draft_email(lead_id):
         )
         
         status = lead.get('call_status') or 'Interested'
-        sender_name = session.get('username') or 'Team'
+        sender_name = 'Nishit Rathod'
         
         system_prompt = _generate_system_prompt(status)
         user_prompt = _generate_user_prompt(lead, items, free, sender_name)
@@ -746,27 +751,9 @@ def export_campaign(campaign_id):
 
     leads = db.get_leads(campaign_id)
 
-    def generate():
-        yield "Name,Address,Phone,Email,Website,Category,Rating,Reviews,Google URL,Status,Notes\n"
-        for lead in leads:
-            row = [
-                str(lead.get('name', '')).replace(',', ' '),
-                str(lead.get('address', '')).replace(',', ' '),
-                str(lead.get('phone', '')).replace(',', ' '),
-                str(lead.get('email', '')).replace(',', ' '),
-                str(lead.get('website', '')).replace(',', ' '),
-                str(lead.get('category', '')).replace(',', ' '),
-                str(lead.get('rating', '')),
-                str(lead.get('reviews', '')),
-                str(lead.get('google_url', '')).replace(',', '%2C'),
-                str(lead.get('call_status', 'Need to Call')).replace(',', ' '),
-                str(lead.get('notes', '')).replace(',', ' ').replace('\r', ' ').replace('\n', ' | '),
-            ]
-            yield ','.join(row) + '\n'
-
     filename = f"leads_{campaign_id}_{campaign.get('name', 'export')}.csv"
     return Response(
-        generate(),
+        _generate_leads_csv(leads),
         mimetype='text/csv',
         headers=csv_download_headers(filename)
     )
