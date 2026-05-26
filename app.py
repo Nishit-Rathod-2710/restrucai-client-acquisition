@@ -574,27 +574,11 @@ def inform_team(lead_id):
     return jsonify({'success': True, 'message': 'Team notified on Telegram.'})
 
 
-# --- Email drafting (n8n webhooks) ---
+# --- Email drafting (OpenRouter AI Agent) ---
 
-N8N_DRAFT_URL = 'https://n8n.srv879062.hstgr.cloud/webhook/n8nEmailDrafting'
+from email_prompts import _generate_system_prompt, _generate_user_prompt
+
 N8N_SEND_URL = 'https://n8n.srv879062.hstgr.cloud/webhook/SendEmail'
-
-
-def _draft_payload(lead, items, free):
-    return {
-        'lead': {
-            'name': lead.get('name'),
-            'email': lead.get('email'),
-            'phone': lead.get('phone'),
-            'website': lead.get('website'),
-            'address': lead.get('address'),
-            'category': lead.get('category'),
-            'call_status': lead.get('call_status'),
-        },
-        'answers': [{'question': it.get('question'), 'answer': it.get('answer')} for it in (items or [])],
-        'free_notes': free or '',
-        'sender': session.get('username'),
-    }
 
 
 @app.route('/api/leads/<int:lead_id>/draft-email', methods=['POST'])
@@ -603,36 +587,74 @@ def draft_email(lead_id):
     lead = db.get_lead(lead_id)
     if not lead:
         return jsonify({'error': 'Not found'}), 404
+    
     body = request.json or {}
-    payload = _draft_payload(lead, body.get('items', []), body.get('free', ''))
+    items = body.get('items', [])
+    free = body.get('free', '')
+    
+    # Load dotenv from multiple locations to be absolutely safe
+    if os.path.exists('.env'):
+        load_dotenv('.env')
+    elif os.path.exists('env'):
+        load_dotenv('env')
+    else:
+        load_dotenv()
+        
+    openrouter_key = os.getenv('OPENROUTER_API_KEY')
+    if not openrouter_key:
+        return jsonify({'error': 'OPENROUTER_API_KEY is not set in the environment (.env or env file).'}), 500
+        
+    from openai import OpenAI
     try:
-        resp = requests.post(N8N_DRAFT_URL, json=payload, timeout=60)
+        client = OpenAI(
+            api_key=openrouter_key,
+            base_url="https://openrouter.ai/api/v1",
+        )
+        
+        status = lead.get('call_status') or 'Interested'
+        sender_name = session.get('username') or 'Team'
+        
+        system_prompt = _generate_system_prompt(status)
+        user_prompt = _generate_user_prompt(lead, items, free, sender_name)
+        
+        response = client.chat.completions.create(
+            model="anthropic/claude-sonnet-4.6",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        content = response.choices[0].message.content
+        
+        # Clean markdown code blocks from LLM response if present
+        cleaned_content = content.strip()
+        if cleaned_content.startswith("```json"):
+            cleaned_content = cleaned_content[7:]
+        elif cleaned_content.startswith("```"):
+            cleaned_content = cleaned_content[3:]
+        if cleaned_content.endswith("```"):
+            cleaned_content = cleaned_content[:-3]
+        cleaned_content = cleaned_content.strip()
+        
+        import json
+        data = json.loads(cleaned_content)
+        subject = data.get('subject') or ''
+        body_text = data.get('body') or ''
+        
+        # Strictly ensure no em-dashes slipped in through model output (fallback replacement)
+        subject = subject.replace('—', ' - ').replace('--', ' - ')
+        body_text = body_text.replace('—', ' - ').replace('--', ' - ')
+        
+        to_addr = lead.get('email') or ''
+        
+        return jsonify({'success': True, 'subject': subject, 'body': body_text, 'to': to_addr})
+        
     except Exception as e:
-        return jsonify({'error': f'Failed to reach drafting agent: {e}'}), 502
-    if not resp.ok:
-        return jsonify({'error': f'Drafting agent returned HTTP {resp.status_code}',
-                        'detail': resp.text[:400]}), 502
-    try:
-        data = resp.json()
-    except Exception:
-        return jsonify({'error': 'Drafting agent did not return JSON',
-                        'detail': resp.text[:400]}), 502
-    # n8n shapes the response a few ways depending on the workflow:
-    #   {subject, body, ...}
-    #   [{subject, body, ...}]                              (Respond-to-Webhook list)
-    #   [{"output": {subject, body, ...}}]                  (AI Agent + Structured Output Parser)
-    #   {"output": {subject, body, ...}}
-    # Unwrap any list, then drill into "output" if present.
-    if isinstance(data, list) and data:
-        data = data[0]
-    if isinstance(data, dict) and isinstance(data.get('output'), dict):
-        data = data['output']
-    if not isinstance(data, dict):
-        data = {}
-    subject = data.get('subject') or ''
-    body_text = data.get('body') or ''
-    to_addr = data.get('to') or lead.get('email') or ''
-    return jsonify({'success': True, 'subject': subject, 'body': body_text, 'to': to_addr})
+        import traceback
+        print(f"[OpenRouter Email Draft] Error:\n{traceback.format_exc()}")
+        return jsonify({'error': f'Failed to draft email with OpenRouter: {str(e)}'}), 500
 
 
 @app.route('/api/leads/<int:lead_id>/send-email', methods=['POST'])

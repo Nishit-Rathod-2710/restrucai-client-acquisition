@@ -988,6 +988,22 @@ const app = {
             : 'Set the lead status to Interested or Follow-Up to enable drafting';
     },
 
+    openDraftPanelOnly() {
+        const leadId = this._notesModalLeadId;
+        if (!leadId) return;
+        const lead = this.state.activeCampaignData?.leads?.find(l => l.id === leadId);
+        if (!DRAFT_EMAIL_ALLOWED_STATUSES.includes(lead?.call_status)) {
+            UI.toast('Set the lead status to "Interested" or "Follow-Up" before drafting an email.', 'info');
+            return;
+        }
+        
+        // Open the side panel immediately with blank/default fields.
+        this._openDraftPanel(lead?.email || '');
+        document.getElementById('draft-subject').value = '';
+        document.getElementById('draft-body').value = '';
+        document.getElementById('draft-loading').classList.add('hidden');
+    },
+
     async draftEmail() {
         const leadId = this._notesModalLeadId;
         if (!leadId) return;
@@ -1007,9 +1023,13 @@ const app = {
         body.value = '';
         subj.value = '';
 
-        const btn = document.querySelector('.notes-btn-draft');
-        const orig = btn ? btn.innerHTML : null;
-        if (btn) { btn.disabled = true; btn.textContent = 'Drafting…'; }
+        const notesBtn = document.querySelector('.notes-btn-draft');
+        const aiBtn = document.getElementById('draft-ai-btn');
+        const origNotesHtml = notesBtn ? notesBtn.innerHTML : null;
+        const origAiHtml = aiBtn ? aiBtn.innerHTML : null;
+
+        if (notesBtn) { notesBtn.disabled = true; notesBtn.textContent = 'Drafting…'; }
+        if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = 'Drafting…'; }
         try {
             const res = await fetch(`/api/leads/${leadId}/draft-email`, {
                 method: 'POST',
@@ -1033,7 +1053,8 @@ const app = {
             UI.toast('Could not reach the drafting agent.', 'error');
         } finally {
             loading.classList.add('hidden');
-            if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+            if (notesBtn) { notesBtn.disabled = false; notesBtn.innerHTML = origNotesHtml; }
+            if (aiBtn) { aiBtn.disabled = false; aiBtn.innerHTML = origAiHtml; }
         }
     },
 

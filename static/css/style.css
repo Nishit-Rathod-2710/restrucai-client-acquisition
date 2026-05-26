@@ -1632,6 +1632,30 @@ textarea::placeholder {
 .draft-btn-send:hover { background: var(--accent-hover); box-shadow: 0 0 12px var(--accent-glow); }
 .draft-btn-send:disabled { opacity: 0.6; cursor: not-allowed; }
 
+.draft-btn-ai {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: transparent;
+    border: 1px solid #9a6bff;
+    color: #9a6bff;
+    font-family: var(--font-ui);
+    font-size: 0.88rem;
+    font-weight: 700;
+    padding: 0.55rem 1.2rem;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.draft-btn-ai:hover {
+    background: rgba(154, 107, 255, 0.08);
+    box-shadow: 0 0 12px rgba(154, 107, 255, 0.25);
+}
+.draft-btn-ai:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* On narrower screens, stack draft below the notes modal */
 @media (max-width: 1080px) {
     .notes-modal-overlay { flex-wrap: wrap; align-content: center; overflow-y: auto; padding: 1.5rem 0; }
