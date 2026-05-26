@@ -69,6 +69,18 @@ and the frontend discovers completion by polling, not by waiting on the original
 Schema is in [supabase_schema.sql](supabase_schema.sql) — run it once in the Supabase SQL
 Editor to create tables. `leads.raw_json` stores the full Apify item as a JSON string.
 
+**AI Email Drafting** (`POST /api/leads/<id>/draft-email` in [app.py](app.py)):
+- Synchronous endpoint (no background thread) that calls OpenRouter with the
+  `anthropic/claude-sonnet-4.6` model to draft a personalized outreach/follow-up email.
+- Prompt templates live in [email_prompts.py](email_prompts.py) — `_generate_system_prompt()`
+  branches on `call_status` (Interested / Follow-Up / other) and `_generate_user_prompt()`
+  injects lead details plus Notes Q&A items and free-form notes.
+- Sender is hardcoded as **Nishit Rathod**; signature must include website
+  `www.restrucai.com`, phone `+91 90825 87107`, and LinkedIn
+  `https://www.linkedin.com/in/nishit-rathod/` (enforced in the system prompt).
+- Response is JSON `{subject, body}`; em-dashes are stripped post-hoc as a fallback.
+- The drafted email is then sent via the n8n webhook at `N8N_SEND_URL`.
+
 ## Things to know
 
 - **Thread state is in-process and ephemeral.** Both `enrichment_jobs` and the background

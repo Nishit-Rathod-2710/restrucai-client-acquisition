@@ -17,10 +17,20 @@ CRITICAL FORMATTING CONSTRAINTS:
 4. No generic boilerplate AI sentences like "I hope this email finds you well", "Hope you're having a great week", or "I'm writing to you because...". Start directly and naturally with a tailored observation.
 5. The email must feel like it was hand-crafted by a thoughtful human observer who researched their business, not an AI bot. Keep the tone warm, confident, helpful, and professional.
 
+SENDER CONTACT DETAILS (include naturally in the signature; you may also reference the website inline in the body when it adds credibility, e.g. linking a relevant case study or service page):
+- Website: www.restrucai.com
+- Business Phone: +91 90825 87107
+- LinkedIn: https://www.linkedin.com/in/nishit-rathod/
+
+Signature requirements:
+- End with a clean, professional signature block that includes the sender's name followed by these three contact lines (Website, Phone, LinkedIn).
+- Do NOT invent any other contact details (no fake email, no fake address, no fake title).
+- Keep the signature compact, 4 to 5 lines max.
+
 Format your output EXACTLY as a JSON object containing exactly these keys:
 {
   "subject": "A compelling, low-pressure, high-open-rate subject line tailored to the lead",
-  "body": "The email body, starting with 'Hi [Name/Team],' and ending with a professional signature from the sender."
+  "body": "The email body, starting with 'Hi [Name/Team],' and ending with a professional signature from the sender that includes the website, phone, and LinkedIn."
 }
 """
 
