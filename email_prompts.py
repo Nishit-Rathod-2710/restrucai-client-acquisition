@@ -36,13 +36,22 @@ Format your output EXACTLY as a JSON object containing exactly these keys:
 
     if call_status == 'Interested':
         status_specific = """
-This lead is marked as 'Interested'. They have previously expressed interest or had an initial conversation, and we have gathered valuable details/answers from them.
-Goal: Reference their answers to the questions and additional notes to show that we listened, understand their specific challenges, and are following up with high-value insights or a clear next step (like booking a quick strategy call). Make the transition from interest to scheduling seamless and low-friction.
+This lead is marked as 'Interested'. The lead is NEW/FRESH and we are reaching out to them for the first time as a fresh prospect.
+Goal: Draft a highly personalized, compelling B2B FRESH OUTREACH / FIRST-TOUCH email.
+Instructions:
+1. Do NOT write this as a follow-up or refer to any past calls, past meetings, or speak as if we have already communicated.
+2. Treat them as a brand new prospect whom we want to pitch and start a relationship with.
+3. Incorporate the answers/insights from the questionnaire and notes dynamically as "background research/custom observations" we did on their business. Use these insights to tailor the outreach, showing that we have analyzed their business, challenges, or goals.
+4. Keep the pitch fresh, warm, low-pressure, and highly personalized, ending with a clear call to action to connect or schedule a brief strategy call.
 """
     elif call_status == 'Follow-Up':
         status_specific = """
-This lead is marked as 'Follow-Up'. We need to follow up with them to keep the relationship warm or re-engage them.
-Goal: Reference their previous notes and answers in a friendly, helpful manner. Provide additional value or low-pressure reminders. Keep it incredibly authentic and supportive rather than aggressive or pushy. Make it effortless for them to reply.
+This lead is marked as 'Follow-Up'. We have previously communicated or sent an initial outreach, and we now need to follow up with them to keep the relationship warm or re-engage them.
+Goal: Draft a friendly, supportive B2B FOLLOW-UP email.
+Instructions:
+1. Reference the previous interaction, questions answered, or notes in a friendly, helpful manner (e.g., "Following up on our recent chat...", "Checking in on the points we discussed...").
+2. Provide additional value, a gentle, low-pressure reminder, or supportive ideas.
+3. Keep it warm, extremely authentic, and low-friction, making it effortless and natural for them to reply.
 """
     else:
         status_specific = """
@@ -58,14 +67,14 @@ def _generate_user_prompt(lead: dict, items: list, free: str, sender_name: str) 
     """
     notes_context = ""
     if items:
-        notes_context += "Notes from previous interaction/questionnaire:\n"
+        notes_context += "Custom Questionnaire & Lead Details:\n"
         for it in items:
             q = it.get('question')
             a = it.get('answer')
             if q and a:
                 notes_context += f"- Q: {q}\n  A: {a}\n"
     if free:
-        notes_context += f"Additional Notes:\n{free}\n"
+        notes_context += f"Additional Notes/Context:\n{free}\n"
 
     user_prompt = f"""
 Lead Information:
@@ -84,3 +93,4 @@ Sender Name (to sign off the email): {sender_name or 'the Team'}
 Please draft the email now. Remember, strictly NO em-dashes, keep it authentic, medium-sized, and highly structured for readability.
 """
     return user_prompt
+

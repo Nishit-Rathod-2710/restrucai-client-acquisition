@@ -163,6 +163,35 @@ def insert_lead(campaign_id, lead_data):
     }).execute()
 
 
+def insert_leads_batch(campaign_id, leads_list):
+    if not leads_list:
+        return
+    rows = []
+    for lead_data in leads_list:
+        raw_json_val = lead_data.get('raw_json', {})
+        if not isinstance(raw_json_val, str):
+            raw_json_val = json.dumps(raw_json_val)
+        rows.append({
+            'campaign_id': campaign_id,
+            'name': lead_data.get('name'),
+            'address': lead_data.get('address'),
+            'phone': lead_data.get('phone'),
+            'email': lead_data.get('email'),
+            'website': lead_data.get('website'),
+            'rating': lead_data.get('rating'),
+            'reviews': lead_data.get('reviews'),
+            'category': lead_data.get('category'),
+            'latitude': lead_data.get('latitude'),
+            'longitude': lead_data.get('longitude'),
+            'google_url': lead_data.get('google_url'),
+            'raw_json': raw_json_val,
+            'call_status': 'Need to Call',
+            'notes': '',
+        })
+    _supabase.table('leads').insert(rows).execute()
+
+
+
 def get_leads(campaign_id):
     res = _supabase.table('leads').select('*').eq('campaign_id', campaign_id).order('rating', desc=True).execute()
     return res.data

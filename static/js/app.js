@@ -348,12 +348,18 @@ const app = {
                             if (this.state.activeCampaignId === camp.id) {
                                 await this.fetchCampaignDetails(camp.id);
                             }
-                        } else if (this.state.activeCampaignId === camp.id && 
-                                   this.state.activeCampaignData &&
-                                   this.state.activeCampaignData.campaign &&
-                                   this.state.activeCampaignData.campaign.id === camp.id) {
-                            if (stat.leads_count > this.state.activeCampaignData.leads.length) {
-                                await this.fetchCampaignDetails(camp.id);
+                        } else {
+                            if (stat.leads_count !== camp.lead_count) {
+                                camp.lead_count = stat.leads_count;
+                                this.renderSidebar();
+                            }
+                            if (this.state.activeCampaignId === camp.id && 
+                                       this.state.activeCampaignData &&
+                                       this.state.activeCampaignData.campaign &&
+                                       this.state.activeCampaignData.campaign.id === camp.id) {
+                                if (stat.leads_count > this.state.activeCampaignData.leads.length) {
+                                    await this.fetchCampaignDetails(camp.id);
+                                }
                             }
                         }
                     } catch (e) { console.error('Poll err', e); }

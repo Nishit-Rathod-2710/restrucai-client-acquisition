@@ -407,8 +407,8 @@ def create_campaign():
 
                     if items:
                         print(f"[Scraper Thread] Found {len(items)} new items from offset {processed_count}.")
-                        for item in items:
-                            db.insert_lead(cid, normalize_item(item))
+                        normalized_items = [normalize_item(item) for item in items]
+                        db.insert_leads_batch(cid, normalized_items)
 
                         processed_count += len(items)
 
@@ -780,10 +780,9 @@ def apify_webhook(campaign_id):
 
     try:
         results = fetch_dataset(dataset_id)
-        for lead in results:
-            db.insert_lead(campaign_id, lead)
+        db.insert_leads_batch(campaign_id, results)
         db.update_campaign_status(campaign_id, 'completed')
-        print(f"[Webhook] Campaign {campaign_id} completed — {len(results)} leads inserted.")
+        print(f"[Webhook] Campaign {campaign_id} completed — {len(results)} leads inserted in batch.")
     except Exception:
         print(f"[Webhook] Campaign {campaign_id} failed:\n{traceback.format_exc()}")
         db.update_campaign_status(campaign_id, 'failed')
