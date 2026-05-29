@@ -1577,7 +1577,9 @@ textarea::placeholder {
     min-height: 220px;
     resize: vertical;
     line-height: 1.5;
-    font-family: var(--font-ui);
+    font-family: var(--font-mono);
+    white-space: pre-wrap;
+    word-wrap: break-word;
 }
 .draft-input::placeholder, .draft-textarea::placeholder { color: var(--text-dim); }
 

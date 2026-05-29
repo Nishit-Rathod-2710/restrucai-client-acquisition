@@ -5,6 +5,7 @@ let CALL_STATUSES = [
     'Not Answered',
     'Interested',
     'Follow-Up',
+    'Email',
     'Closed',
 ];
 
@@ -14,12 +15,13 @@ const STATUS_COLORS = {
     'Not Answered': '#ffbd2e',
     'Interested':   '#00e676',
     'Follow-Up':    '#C8F135',
+    'Email':        '#00e5ff',
     'Closed':       '#6d4cff',
 };
 
 // Statuses where the Draft Email button is allowed (lead is qualified enough
 // to send personalised outreach).
-const DRAFT_EMAIL_ALLOWED_STATUSES = ['Interested', 'Follow-Up'];
+const DRAFT_EMAIL_ALLOWED_STATUSES = ['Interested', 'Follow-Up', 'Email'];
 
 // ── App ───────────────────────────────────────────────────────────────────────
 const app = {
@@ -52,6 +54,22 @@ const app = {
         }
         await this._ensureNoteQuestions();   // needed so note-cell previews render
         await this.fetchCampaigns();
+
+        // Robust click outside notes-modal and draft-panel handling.
+        // Triggers close only if mousedown and click both occurred directly on the backdrop itself,
+        // which prevents accidental closing when dragging text selections out of the panels.
+        const overlay = document.getElementById('notes-modal-overlay');
+        if (overlay) {
+            let mouseDownTarget = null;
+            overlay.addEventListener('mousedown', (e) => {
+                mouseDownTarget = e.target;
+            });
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay && mouseDownTarget === overlay) {
+                    this.closeNotesModal();
+                }
+            });
+        }
     },
 
     // ── Supabase Realtime ─────────────────────────────────────────────────────
@@ -991,7 +1009,7 @@ const app = {
         btn.disabled = !allowed;
         btn.title = allowed
             ? 'Generate a draft email with the AI agent'
-            : 'Set the lead status to Interested or Follow-Up to enable drafting';
+            : 'Set the lead status to Interested, Follow-Up or Email to enable drafting';
     },
 
     openDraftPanelOnly() {
@@ -999,7 +1017,7 @@ const app = {
         if (!leadId) return;
         const lead = this.state.activeCampaignData?.leads?.find(l => l.id === leadId);
         if (!DRAFT_EMAIL_ALLOWED_STATUSES.includes(lead?.call_status)) {
-            UI.toast('Set the lead status to "Interested" or "Follow-Up" before drafting an email.', 'info');
+            UI.toast('Set the lead status to "Interested", "Follow-Up" or "Email" before drafting an email.', 'info');
             return;
         }
         
@@ -1015,7 +1033,7 @@ const app = {
         if (!leadId) return;
         const lead = this.state.activeCampaignData?.leads?.find(l => l.id === leadId);
         if (!DRAFT_EMAIL_ALLOWED_STATUSES.includes(lead?.call_status)) {
-            UI.toast('Set the lead status to "Interested" or "Follow-Up" before drafting an email.', 'info');
+            UI.toast('Set the lead status to "Interested", "Follow-Up" or "Email" before drafting an email.', 'info');
             return;
         }
         const c = this._collectNotesAnswers();  // {items, free, allAnswered}

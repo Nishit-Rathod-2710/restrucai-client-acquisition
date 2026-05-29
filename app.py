@@ -33,6 +33,7 @@ CALL_STATUSES = [
     'Not Answered',
     'Interested',
     'Follow-Up',
+    'Email',
     'Closed',
 ]
 # Canonical list exposed to frontend

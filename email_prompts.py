@@ -34,9 +34,9 @@ Format your output EXACTLY as a JSON object containing exactly these keys:
 }
 """
 
-    if call_status == 'Interested':
+    if call_status == 'Interested' or call_status == 'Email':
         status_specific = """
-This lead is marked as 'Interested'. The lead is NEW/FRESH and we are reaching out to them for the first time as a fresh prospect.
+This lead is marked as 'Interested' or 'Email'. The lead is NEW/FRESH and we are reaching out to them for the first time as a fresh prospect.
 Goal: Draft a highly personalized, compelling B2B FRESH OUTREACH / FIRST-TOUCH email.
 Instructions:
 1. Do NOT write this as a follow-up or refer to any past calls, past meetings, or speak as if we have already communicated.
