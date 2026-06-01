@@ -12,7 +12,7 @@ The RestrucAI Client Acquisition app is a self-contained, single-user B2B outrea
 3. Persist leads in a secure, real-time **Supabase (PostgreSQL)** database.
 4. Crawl business homepages and contact links in background threads to enrich profiles with direct emails.
 5. Answer tailored notes/questionnaires per lead to compile personalized sales context.
-6. Generate highly-tailored, structure-preserving outreach emails with **Anthropic Claude 3.5 Sonnet** (via **OpenRouter**).
+6. Generate highly-tailored, structure-preserving outreach emails with **Anthropic Claude 4.6 Sonnet** (via **OpenRouter**).
 7. Trigger instant email delivery through an **n8n webhook workflow**.
 
 ---
@@ -113,7 +113,7 @@ erDiagram
 
 ### Lead Call Status Options
 The available statuses for any lead in the pipeline are:
-`'Need to Call'` | `'Called NIL'` | `'Not Answered'` | `'Interested'` | `'Follow-Up'` | `'Email'` | `'Closed'`
+`'Need to Call'` | `'Called NIL'` | `'Not Answered'` | `'Interested'` | `'Follow-Up'` | `'Email'` | `'Closed'` | `'No Data'`
 
 ### Draft-Enabled Statuses
 Only leads with the following qualified statuses can open and use the AI email draft side panel:

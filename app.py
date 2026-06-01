@@ -35,6 +35,7 @@ CALL_STATUSES = [
     'Follow-Up',
     'Email',
     'Closed',
+    'No Data',
 ]
 # Canonical list exposed to frontend
 

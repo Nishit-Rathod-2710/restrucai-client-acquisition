@@ -7,6 +7,7 @@ let CALL_STATUSES = [
     'Follow-Up',
     'Email',
     'Closed',
+    'No Data',
 ];
 
 const STATUS_COLORS = {
@@ -17,6 +18,7 @@ const STATUS_COLORS = {
     'Follow-Up':    '#C8F135',
     'Email':        '#00e5ff',
     'Closed':       '#6d4cff',
+    'No Data':      '#747b9e',
 };
 
 // Statuses where the Draft Email button is allowed (lead is qualified enough
