@@ -1026,7 +1026,7 @@ const app = {
         // Open the side panel immediately with blank/default fields.
         this._openDraftPanel(lead?.email || '');
         document.getElementById('draft-subject').value = '';
-        document.getElementById('draft-body').value = '';
+        document.getElementById('draft-body').innerHTML = '';
         document.getElementById('draft-loading').classList.add('hidden');
     },
 
@@ -1046,7 +1046,7 @@ const app = {
         const body = document.getElementById('draft-body');
         const subj = document.getElementById('draft-subject');
         loading.classList.remove('hidden');
-        body.value = '';
+        body.innerHTML = '';
         subj.value = '';
 
         const notesBtn = document.querySelector('.notes-btn-draft');
@@ -1068,7 +1068,7 @@ const app = {
             const data = await res.json();
             if (res.ok && data.success) {
                 subj.value = data.subject || '';
-                body.value = data.body || '';
+                body.innerHTML = this.plainTextToHTML(data.body || '');
                 if (data.to) document.getElementById('draft-to').value = data.to;
                 UI.toast('Draft ready — review and send.', 'success');
             } else {
@@ -1089,9 +1089,10 @@ const app = {
         if (!leadId) return;
         const to = document.getElementById('draft-to').value.trim();
         const subject = document.getElementById('draft-subject').value.trim();
-        const body = document.getElementById('draft-body').value.trim();
+        const body = document.getElementById('draft-body').innerHTML.trim();
+        const bodyText = document.getElementById('draft-body').innerText.trim();
         if (!to) { UI.toast('Recipient email is required.', 'error'); return; }
-        if (!subject || !body) { UI.toast('Subject and body are required.', 'error'); return; }
+        if (!subject || !bodyText) { UI.toast('Subject and body are required.', 'error'); return; }
 
         const ok = await UI.confirm({
             title: 'Send this email?',
@@ -1122,6 +1123,33 @@ const app = {
         } finally {
             btn.disabled = false; btn.innerHTML = orig;
         }
+    },
+
+    execEditorCommand(cmd, value = null) {
+        if (cmd === 'createLink') {
+            const url = prompt('Enter the link URL (e.g., https://example.com):');
+            if (url) {
+                document.execCommand(cmd, false, url);
+            }
+        } else {
+            document.execCommand(cmd, false, value);
+        }
+        const editor = document.getElementById('draft-body');
+        if (editor) editor.focus();
+    },
+
+    plainTextToHTML(text) {
+        if (!text) return '';
+        if (text.includes('<p>') || text.includes('<br>') || text.includes('<b>')) {
+            return text;
+        }
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;")
+            .replace(/\n/g, '<br>');
     },
 
     _openDraftPanel(toEmail) {
